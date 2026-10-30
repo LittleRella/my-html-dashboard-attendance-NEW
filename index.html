@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Attendance Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📋</text></svg>">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b2430;--mu:#667085;--bd:#e3e7ee;--ok:#0f7b4a;--okb:#dff5e9;--bad:#b42318;--badb:#fde4e1;--ac:#2f5bd8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1b212a;--tx:#e8ecf2;--mu:#98a2b3;--bd:#2c3440;--ok:#5fd39b;--okb:#17382a;--bad:#ff8a7e;--badb:#40201d;--ac:#7c9cff;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1b212a;--tx:#e8ecf2;--mu:#98a2b3;--bd:#2c3440;--ok:#5fd39b;--okb:#17382a;--bad:#ff8a7e;--badb:#40201d;--ac:#7c9cff;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mu);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
+.grid{display:grid;gap:12px}
+.cfg{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
+.stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
+label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
+input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px 8px;width:100%}
+input[type=number]{width:70px;text-align:center}
+.big{font-size:28px;font-weight:700}.lbl{color:var(--mu);font-size:12px}
+.bar{height:8px;background:var(--bd);border-radius:6px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ok)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+.tools input,.tools select{width:auto;min-width:160px}
+button{font:inherit;background:var(--ac);color:#fff;border:0;border-radius:8px;padding:7px 12px;cursor:pointer}
+button.g{background:transparent;color:var(--mu);border:1px solid var(--bd)}
+.tw{overflow-x:auto;padding:0}
+table{border-collapse:collapse;width:100%;min-width:980px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:center;white-space:nowrap}
+th{font-size:12px;color:var(--mu);font-weight:600;background:var(--card)}
+th.grp{border-bottom:1px solid var(--bd);color:var(--tx)}
+td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+.pill{display:inline-block;min-width:52px;padding:2px 8px;border-radius:99px;font-weight:600;font-size:12px}
+.ok{background:var(--okb);color:var(--ok)}.no{background:var(--badb);color:var(--bad)}
+.why{display:block;font-size:11px;color:var(--mu);white-space:normal;max-width:170px;margin:2px auto 0}
+.x{background:none;color:var(--mu);padding:2px 6px}
+.note{color:var(--mu);font-size:12px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Attendance Dashboard</h1>
+  <p class="sub">Semester online and physical attendance, plus year-long physical attendance. Edit any number and results update instantly.</p>
+
+  <div class="card grid cfg">
+    <div><label>Semester minimum, online and physical (%)</label><input type="number" id="t1" value="80" min="0" max="100"></div>
+    <div><label>Year minimum, physical (%)</label><input type="number" id="t2" value="60" min="0" max="100"></div>
+    <div><label>Sem 1 classes held: Online</label><input type="number" id="h0" value="30" min="1"></div>
+    <div><label>Sem 1 classes held: Physical</label><input type="number" id="h1" value="40" min="1"></div>
+    <div><label>Sem 2 classes held: Online</label><input type="number" id="h2" value="28" min="1"></div>
+    <div><label>Sem 2 classes held: Physical</label><input type="number" id="h3" value="36" min="1"></div>
+  </div>
+
+  <div class="grid stats" id="stats"></div>
+
+  <div class="tools">
+    <input id="q" placeholder="Search student…">
+    <select id="f"><option value="all">All students</option><option value="ok">Eligible only</option><option value="no">Not eligible only</option></select>
+    <button id="add">+ Add student</button>
+    <button class="g" id="csv">Export CSV</button>
+  </div>
+
+  <div class="card tw"><table>
+    <thead>
+      <tr><th rowspan="2">Student</th>
+        <th colspan="2" class="grp">Sem 1 Online</th><th colspan="2" class="grp">Sem 1 Physical</th>
+        <th colspan="2" class="grp">Sem 2 Online</th><th colspan="2" class="grp">Sem 2 Physical</th>
+        <th rowspan="2">Year physical</th><th rowspan="2">Status</th><th rowspan="2"></th></tr>
+      <tr><th>Attended</th><th>%</th><th>Attended</th><th>%</th><th>Attended</th><th>%</th><th>Attended</th><th>%</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <p class="note">A student is <b>eligible</b> only when all five checks pass: online and physical each reach the semester minimum in Semester 1 and in Semester 2, and combined physical attendance across both semesters reaches the year minimum.</p>
+</div>
+
+<script>
+const names=["Adaeze Okafor","Tunde Bakare","Chiamaka Eze","Ibrahim Musa","Funke Adeyemi","Emeka Nwosu","Zainab Yusuf","Segun Alabi","Ngozi Obi","Bola Lawal","Kelechi Umeh","Halima Sani"];
+const seed=[[28,38,26,34],[22,30,20,25],[30,40,28,36],[26,18,25,14],[24,34,22,30],[20,24,18,20],[29,36,27,33],[25,22,23,15],[27,39,24,35],[18,26,20,22],[30,31,28,30],[23,35,26,36]];
+let S=names.map((n,i)=>({n,a:seed[i].slice()}));
+const $=id=>document.getElementById(id);
+const held=()=>[0,1,2,3].map(i=>Math.max(1,+$('h'+i).value||1));
+const pct=(a,h)=>a/h*100;
+const pill=(v,t)=>`<span class="pill ${v>=t?'ok':'no'}">${v.toFixed(1)}%</span>`;
+
+function calc(s){
+  const H=held(),t1=+$('t1').value||0,t2=+$('t2').value||0;
+  const p=s.a.map((a,i)=>pct(a,H[i]));
+  const yr=pct(s.a[1]+s.a[3],H[1]+H[3]);
+  const lab=['Sem 1 online','Sem 1 physical','Sem 2 online','Sem 2 physical'];
+  const fails=[];
+  p.forEach((v,i)=>{if(v<t1)fails.push(lab[i])});
+  if(yr<t2)fails.push('Year physical');
+  return{p,yr,t1,t2,fails,ok:!fails.length};
+}
+function rowHTML(s,i){
+  const c=calc(s);
+  const inp=k=>`<td><input type="number" min="0" value="${s.a[k]}" data-i="${i}" data-k="${k}"></td>`;
+  return `<td><input style="width:150px" value="${s.n.replace(/"/g,'&quot;')}" data-i="${i}" data-name></td>`+
+    [0,1,2,3].map(k=>inp(k)+`<td>${pill(c.p[k],c.t1)}</td>`).join('')+
+    `<td>${pill(c.yr,c.t2)}</td>`+
+    `<td><span class="pill ${c.ok?'ok':'no'}">${c.ok?'Eligible':'Not eligible'}</span>${c.ok?'':`<span class="why">Short: ${c.fails.join(', ')}</span>`}</td>`+
+    `<td><button class="x" data-del="${i}" title="Remove">✕</button></td>`;
+}
+function stats(){
+  const H=held(),r=S.map(calc),n=S.length,ok=r.filter(x=>x.ok).length;
+  const cnt=f=>r.filter(x=>x.fails.some(f)).length;
+  const sem=k=>cnt(x=>x===k);
+  const card=(l,v,extra='')=>`<div class="card"><div class="lbl">${l}</div><div class="big">${v}</div>${extra}</div>`;
+  $('stats').innerHTML=
+    card('Students',n)+
+    card('Eligible',ok,`<div class="bar"><i style="width:${n?ok/n*100:0}%"></i></div>`)+
+    card('Not eligible',n-ok)+
+    card('Below semester minimum',cnt(x=>x!=='Year physical'),`<div class="lbl">Any online/physical semester check</div>`)+
+    card('Below year physical',sem('Year physical'),`<div class="lbl">Combined physical, both semesters</div>`);
+}
+function render(){
+  const q=$('q').value.toLowerCase(),f=$('f').value;
+  $('rows').innerHTML=S.map((s,i)=>({s,i,c:calc(s)})).filter(({s,c})=>s.n.toLowerCase().includes(q)&&(f==='all'||(f==='ok')===c.ok))
+    .map(({s,i})=>`<tr data-r="${i}">${rowHTML(s,i)}</tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--mu)">No students match.</td></tr>';
+  stats();
+}
+$('rows').addEventListener('input',e=>{
+  const t=e.target,i=+t.dataset.i;
+  if(t.hasAttribute('data-name')){S[i].n=t.value;return}
+  const k=+t.dataset.k,H=held();
+  S[i].a[k]=Math.min(Math.max(0,+t.value||0),H[k]);
+  const tr=t.closest('tr'),keep=t.dataset.k;
+  // refresh only computed cells so typing focus is preserved
+  const tmp=document.createElement('tr');tmp.innerHTML=rowHTML(S[i],i);
+  [...tr.children].forEach((td,j)=>{if(!td.querySelector('input'))td.innerHTML=tmp.children[j].innerHTML});
+  stats();
+});
+$('rows').addEventListener('change',e=>{if(!e.target.hasAttribute('data-name'))render()});
+$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!==undefined){S.splice(+d,1);render()}});
+['t1','t2','h0','h1','h2','h3'].forEach(id=>$(id).addEventListener('input',()=>{
+  const H=held();S.forEach(s=>s.a=s.a.map((a,k)=>Math.min(a,H[k])));render()}));
+$('q').addEventListener('input',render);$('f').addEventListener('change',render);
+$('add').onclick=()=>{S.push({n:'New student',a:[0,0,0,0]});$('q').value='';$('f').value='all';render()};
+$('csv').onclick=()=>{
+  const H=held();
+  const rows=[['Student','S1 Online %','S1 Physical %','S2 Online %','S2 Physical %','Year Physical %','Status','Short on']];
+  S.forEach(s=>{const c=calc(s);rows.push([s.n,...c.p.map(v=>v.toFixed(1)),c.yr.toFixed(1),c.ok?'Eligible':'Not eligible',c.fails.join('; ')])});
+  const txt=rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const w=window.open('','_blank');
+  if(w){w.document.write('<pre style="white-space:pre-wrap;font:13px monospace">'+txt.replace(/</g,'&lt;')+'</pre>')}
+};
+render();
+</script>
+</body>
+</html>
