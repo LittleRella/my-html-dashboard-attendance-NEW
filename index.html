@@ -13,37 +13,47 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:1200px;margin:0 auto;padding:20px 16px 40px}
-h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mu);margin:0 0 18px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:0 0 4px}.sub{color:var(--mu);margin:0 0 18px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px 16px}
 .grid{display:grid;gap:12px}
-.cfg{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
-.stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
+.cfg,.stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px}
 label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px 8px;width:100%}
 input[type=number]{width:70px;text-align:center}
+.cfg input[type=number]{width:100%}
 .big{font-size:28px;font-weight:700}.lbl{color:var(--mu);font-size:12px}
 .bar{height:8px;background:var(--bd);border-radius:6px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--ok)}
-.tools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
-.tools input,.tools select{width:auto;min-width:160px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px;align-items:center}
+.tools input,.tools select{width:auto;min-width:150px}
 button{font:inherit;background:var(--ac);color:#fff;border:0;border-radius:8px;padding:7px 12px;cursor:pointer}
-button.g{background:transparent;color:var(--mu);border:1px solid var(--bd)}
+button.g{background:transparent;color:var(--tx);border:1px solid var(--bd)}
 .tw{overflow-x:auto;padding:0}
 table{border-collapse:collapse;width:100%;min-width:980px}
 th,td{padding:7px 8px;border-bottom:1px solid var(--bd);text-align:center;white-space:nowrap}
 th{font-size:12px;color:var(--mu);font-weight:600;background:var(--card)}
-th.grp{border-bottom:1px solid var(--bd);color:var(--tx)}
+th.grp{color:var(--tx)}
 td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+td small{color:var(--mu)}
 .pill{display:inline-block;min-width:52px;padding:2px 8px;border-radius:99px;font-weight:600;font-size:12px}
 .ok{background:var(--okb);color:var(--ok)}.no{background:var(--badb);color:var(--bad)}
 .why{display:block;font-size:11px;color:var(--mu);white-space:normal;max-width:170px;margin:2px auto 0}
 .x{background:none;color:var(--mu);padding:2px 6px}
-.note{color:var(--mu);font-size:12px;margin-top:10px}
+.note{color:var(--mu);font-size:12px;margin:8px 0}.gd{color:var(--ok)}.bd{color:var(--bad)}
+.frm{display:grid;grid-template-columns:1.4fr 2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin:10px 0}
+.qg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
+.qc{border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}
+.qc canvas{width:100%;max-width:150px;height:auto;background:#fff;border-radius:4px}
+.qc b{display:block;font-size:12px}.qc small{color:var(--mu);font-size:11px;display:block}
+.qc button{margin-top:4px;padding:2px 8px;font-size:12px}
+@media(max-width:720px){.frm{grid-template-columns:1fr 1fr}}
+@media print{body{background:#fff;color:#000}.noprint{display:none!important}.qc{break-inside:avoid;border-color:#999}.qc small{color:#555}.qc button{display:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="noprint">
   <h1>Attendance Dashboard</h1>
-  <p class="sub">Semester online and physical attendance, plus year-long physical attendance. Edit any number and results update instantly.</p>
+  <p class="sub">Upload your students, generate a unique QR code per student for every session, and track semester and year attendance.</p>
 
   <div class="card grid cfg">
     <div><label>Semester minimum, online and physical (%)</label><input type="number" id="t1" value="80" min="0" max="100"></div>
@@ -57,11 +67,15 @@ td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:
   <div class="grid stats" id="stats"></div>
 
   <div class="tools">
-    <input id="q" placeholder="Search student…">
+    <input id="q" placeholder="Search name or matric…">
     <select id="f"><option value="all">All students</option><option value="ok">Eligible only</option><option value="no">Not eligible only</option></select>
     <button id="add">+ Add student</button>
-    <button class="g" id="csv">Export CSV</button>
+    <button class="g" id="tpl">⬇ CSV template</button>
+    <button class="g" id="up">⬆ Upload students CSV</button>
+    <input type="file" id="uf" accept=".csv,text/csv" hidden>
+    <button class="g" id="csv">Export results CSV</button>
   </div>
+  <div class="note" id="msg" aria-live="polite"></div>
 
   <div class="card tw"><table>
     <thead>
@@ -73,22 +87,71 @@ td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:
     </thead>
     <tbody id="rows"></tbody>
   </table></div>
-  <p class="note">A student is <b>eligible</b> only when all five checks pass: online and physical each reach the semester minimum in Semester 1 and in Semester 2, and combined physical attendance across both semesters reaches the year minimum.</p>
+  <p class="note">Eligible means all five checks pass: online and physical each reach the semester minimum in both semesters, and combined physical attendance reaches the year minimum.</p>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Cohorts and courses</h2>
+    <p class="note" style="margin-top:0">Upload the courses each cohort takes. When you create a session, you can pick a course to fill in its title and semester.</p>
+    <div class="tools">
+      <input id="cq" placeholder="Search courses…">
+      <button class="g" id="ctpl">⬇ Course CSV template</button>
+      <button class="g" id="cup">⬆ Upload courses CSV</button>
+      <input type="file" id="cuf" accept=".csv,text/csv" hidden>
+      <button class="g" id="cex">Export courses CSV</button>
+    </div>
+    <div class="note" id="cmsg" aria-live="polite"></div>
+    <div class="tw"><table style="min-width:820px"><thead><tr><th>Cohort</th><th>Year</th><th>Semester</th><th>Course title</th><th>Code</th><th>Credit unit</th><th>Faculty</th><th></th></tr></thead><tbody id="crows"></tbody></table></div>
+  </div>
+  </div>
+
+  <div class="card" id="qs" style="margin-top:16px">
+    <div class="noprint">
+      <h2>Sessions and QR codes</h2>
+      <p class="note" style="margin-top:0">Each session gives every student a different QR code. Checking in a student adds 1 to their attended count for that session’s semester and mode.</p>
+      <div class="frm">
+        <div><label>Course (optional)</label><select id="sc"><option value="">None</option></select></div>
+        <div><label>Session title</label><input id="st" placeholder="e.g. CSC101 Week 3 Lecture"></div>
+        <div><label>Date</label><input type="date" id="sd"></div>
+        <div><label>Semester</label><select id="sm"><option value="1">Semester 1</option><option value="2">Semester 2</option></select></div>
+        <div><label>Mode</label><select id="sx"><option>Physical</option><option>Online</option></select></div>
+        <button id="mk">Generate QR codes</button>
+      </div>
+      <div class="tools" style="margin-top:0">
+        <select id="ss" style="min-width:260px"></select>
+        <button class="g" id="pr">🖨 Print QR sheet</button>
+        <button class="g" id="ds">Delete session</button>
+        <input id="ci" placeholder="Check in: scan or paste QR text…" style="min-width:260px">
+        <button id="cb">Check in</button>
+      </div>
+    </div>
+    <h2 id="qh"></h2><div class="note" id="qinfo"></div>
+    <div class="qg" id="qg"></div>
+  </div>
 </div>
 
 <script>
-const names=["Adaeze Okafor","Tunde Bakare","Chiamaka Eze","Ibrahim Musa","Funke Adeyemi","Emeka Nwosu","Zainab Yusuf","Segun Alabi","Ngozi Obi","Bola Lawal","Kelechi Umeh","Halima Sani"];
-const seed=[[28,38,26,34],[22,30,20,25],[30,40,28,36],[26,18,25,14],[24,34,22,30],[20,24,18,20],[29,36,27,33],[25,22,23,15],[27,39,24,35],[18,26,20,22],[30,31,28,30],[23,35,26,36]];
-let S=names.map((n,i)=>({n,a:seed[i].slice()}));
 const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rnd=n=>[...crypto.getRandomValues(new Uint8Array(n))].map(b=>b.toString(16).padStart(2,'0')).join('');
+const KEY='att-dash-v2';
+const seedN=[["Okafor","Adaeze","Chioma"],["Bakare","Tunde",""],["Eze","Chiamaka","Grace"],["Musa","Ibrahim",""],["Adeyemi","Funke","Titilayo"],["Nwosu","Emeka",""],["Yusuf","Zainab","Aisha"],["Alabi","Segun","Michael"],["Obi","Ngozi",""],["Lawal","Bola","Kemi"],["Umeh","Kelechi",""],["Sani","Halima",""]];
+const seed=[[28,38,26,34],[22,30,20,25],[30,40,28,36],[26,18,25,14],[24,34,22,30],[20,24,18,20],[29,36,27,33],[25,22,23,15],[27,39,24,35],[18,26,20,22],[30,31,28,30],[23,35,26,36]];
+let S=seedN.map((n,i)=>({m:'CSC/2023/'+String(i+1).padStart(3,'0'),ln:n[0],fn:n[1],mn:n[2],a:seed[i].slice()}));
+let sess=[],C=[{cohort:'2023/2024 Cohort',year:'1',sem:'1',title:'Introduction to Computer Science',code:'CSC101',cu:'3',fac:'Faculty of Science'},{cohort:'2023/2024 Cohort',year:'1',sem:'2',title:'General Physics II',code:'PHY102',cu:'2',fac:'Faculty of Science'}];
+try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.S){S=d.S;sess=d.sess||[];C=d.C||C;Object.entries(d.cfg||{}).forEach(([k,v])=>{if($(k))$(k).value=v})}}catch(e){}
+$('sd').value=new Date().toISOString().slice(0,10);
+function save(){try{const cfg={};['t1','t2','h0','h1','h2','h3'].forEach(k=>cfg[k]=$(k).value);localStorage.setItem(KEY,JSON.stringify({S,sess,C,cfg}))}catch(e){}}
+const nm=s=>[s.ln,s.fn,s.mn].filter(Boolean).join(' ');
 const held=()=>[0,1,2,3].map(i=>Math.max(1,+$('h'+i).value||1));
-const pct=(a,h)=>a/h*100;
 const pill=(v,t)=>`<span class="pill ${v>=t?'ok':'no'}">${v.toFixed(1)}%</span>`;
+function say(t,ok,id){const m=$(id||'msg');m.textContent=t;m.className='note '+(ok?'gd':'bd')}
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/csv'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+const cq=v=>'"'+String(v).replace(/"/g,'""')+'"';
 
 function calc(s){
   const H=held(),t1=+$('t1').value||0,t2=+$('t2').value||0;
-  const p=s.a.map((a,i)=>pct(a,H[i]));
-  const yr=pct(s.a[1]+s.a[3],H[1]+H[3]);
+  const p=s.a.map((a,i)=>a/H[i]*100);
+  const yr=(s.a[1]+s.a[3])/(H[1]+H[3])*100;
   const lab=['Sem 1 online','Sem 1 physical','Sem 2 online','Sem 2 physical'];
   const fails=[];
   p.forEach((v,i)=>{if(v<t1)fails.push(lab[i])});
@@ -98,56 +161,188 @@ function calc(s){
 function rowHTML(s,i){
   const c=calc(s);
   const inp=k=>`<td><input type="number" min="0" value="${s.a[k]}" data-i="${i}" data-k="${k}"></td>`;
-  return `<td><input style="width:150px" value="${s.n.replace(/"/g,'&quot;')}" data-i="${i}" data-name></td>`+
+  return `<td><b>${esc(nm(s))}</b><br><small>${esc(s.m)}</small></td>`+
     [0,1,2,3].map(k=>inp(k)+`<td>${pill(c.p[k],c.t1)}</td>`).join('')+
     `<td>${pill(c.yr,c.t2)}</td>`+
     `<td><span class="pill ${c.ok?'ok':'no'}">${c.ok?'Eligible':'Not eligible'}</span>${c.ok?'':`<span class="why">Short: ${c.fails.join(', ')}</span>`}</td>`+
     `<td><button class="x" data-del="${i}" title="Remove">✕</button></td>`;
 }
 function stats(){
-  const H=held(),r=S.map(calc),n=S.length,ok=r.filter(x=>x.ok).length;
+  const r=S.map(calc),n=S.length,ok=r.filter(x=>x.ok).length;
   const cnt=f=>r.filter(x=>x.fails.some(f)).length;
-  const sem=k=>cnt(x=>x===k);
-  const card=(l,v,extra='')=>`<div class="card"><div class="lbl">${l}</div><div class="big">${v}</div>${extra}</div>`;
-  $('stats').innerHTML=
-    card('Students',n)+
+  const card=(l,v,e='')=>`<div class="card"><div class="lbl">${l}</div><div class="big">${v}</div>${e}</div>`;
+  $('stats').innerHTML=card('Students',n)+
     card('Eligible',ok,`<div class="bar"><i style="width:${n?ok/n*100:0}%"></i></div>`)+
     card('Not eligible',n-ok)+
     card('Below semester minimum',cnt(x=>x!=='Year physical'),`<div class="lbl">Any online/physical semester check</div>`)+
-    card('Below year physical',sem('Year physical'),`<div class="lbl">Combined physical, both semesters</div>`);
+    card('Below year physical',cnt(x=>x==='Year physical'),`<div class="lbl">Combined physical, both semesters</div>`);
 }
 function render(){
   const q=$('q').value.toLowerCase(),f=$('f').value;
-  $('rows').innerHTML=S.map((s,i)=>({s,i,c:calc(s)})).filter(({s,c})=>s.n.toLowerCase().includes(q)&&(f==='all'||(f==='ok')===c.ok))
-    .map(({s,i})=>`<tr data-r="${i}">${rowHTML(s,i)}</tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--mu)">No students match.</td></tr>';
-  stats();
+  $('rows').innerHTML=S.map((s,i)=>({s,i,c:calc(s)})).filter(({s,c})=>(nm(s)+' '+s.m).toLowerCase().includes(q)&&(f==='all'||(f==='ok')===c.ok))
+    .map(({s,i})=>`<tr>${rowHTML(s,i)}</tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--mu)">No students match.</td></tr>';
+  stats();save();
 }
+const all=()=>{render();renderQR()};
+
 $('rows').addEventListener('input',e=>{
-  const t=e.target,i=+t.dataset.i;
-  if(t.hasAttribute('data-name')){S[i].n=t.value;return}
-  const k=+t.dataset.k,H=held();
-  S[i].a[k]=Math.min(Math.max(0,+t.value||0),H[k]);
-  const tr=t.closest('tr'),keep=t.dataset.k;
-  // refresh only computed cells so typing focus is preserved
-  const tmp=document.createElement('tr');tmp.innerHTML=rowHTML(S[i],i);
+  const t=e.target,i=+t.dataset.i,k=+t.dataset.k;
+  S[i].a[k]=Math.min(Math.max(0,+t.value||0),held()[k]);
+  const tr=t.closest('tr'),tmp=document.createElement('tr');tmp.innerHTML=rowHTML(S[i],i);
   [...tr.children].forEach((td,j)=>{if(!td.querySelector('input'))td.innerHTML=tmp.children[j].innerHTML});
-  stats();
+  stats();save();
 });
-$('rows').addEventListener('change',e=>{if(!e.target.hasAttribute('data-name'))render()});
-$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!==undefined){S.splice(+d,1);render()}});
-['t1','t2','h0','h1','h2','h3'].forEach(id=>$(id).addEventListener('input',()=>{
-  const H=held();S.forEach(s=>s.a=s.a.map((a,k)=>Math.min(a,H[k])));render()}));
+$('rows').addEventListener('change',render);
+$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!==undefined){S.splice(+d,1);all()}});
+['t1','t2','h0','h1','h2','h3'].forEach(id=>$(id).addEventListener('input',()=>{const H=held();S.forEach(s=>s.a=s.a.map((a,k)=>Math.min(a,H[k])));render()}));
 $('q').addEventListener('input',render);$('f').addEventListener('change',render);
-$('add').onclick=()=>{S.push({n:'New student',a:[0,0,0,0]});$('q').value='';$('f').value='all';render()};
+
+$('add').onclick=()=>{
+  const v=prompt('Enter: matric number, last name, first name, middle name (optional)');if(!v)return;
+  const [m,ln,fn,mn]=v.split(',').map(x=>x.trim());
+  if(!m||!(ln||fn))return say('Please give at least a matric number and a name.',0);
+  if(S.some(s=>s.m.toLowerCase()===m.toLowerCase()))return say('That matric number already exists.',0);
+  S.push({m,ln:ln||'',fn:fn||'',mn:mn||'',a:[0,0,0,0]});all();say('Student added.',1)};
+$('tpl').onclick=()=>dl('students_template.csv','matric_number,last_name,first_name,middle_name\nCSC/2023/101,Okafor,Adaeze,Chioma\nCSC/2023/102,Bakare,Tunde,\n');
+$('up').onclick=()=>$('uf').click();
+function parseCSV(t){const rows=[];let r=[],c='',q=false;
+  for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}
+    else if(ch=='"')q=true;else if(ch==','){r.push(c);c=''}
+    else if(ch=='\n'||ch=='\r'){if(ch=='\r'&&t[i+1]=='\n')i++;r.push(c);c='';rows.push(r);r=[]}else c+=ch}
+  if(c||r.length){r.push(c);rows.push(r)}return rows.filter(r=>r.some(x=>x.trim()))}
+$('uf').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rows=parseCSV((await f.text()).replace(/^\uFEFF/,''));e.target.value='';
+  if(rows.length&&/matric/i.test(rows[0][0]))rows.shift();
+  let add=0,upd=0,skip=0;
+  rows.forEach(r=>{const [m,ln,fn,mn]=[0,1,2,3].map(i=>(r[i]||'').trim());
+    if(!m||!(ln||fn)){skip++;return}
+    const s=S.find(x=>x.m.toLowerCase()===m.toLowerCase());
+    if(s){s.ln=ln;s.fn=fn;s.mn=mn;upd++}else{S.push({m,ln,fn,mn,a:[0,0,0,0]});add++}});
+  all();say(`Upload done: ${add} added, ${upd} updated, ${skip} skipped (missing matric number or name).`,add+upd>0)};
 $('csv').onclick=()=>{
-  const H=held();
-  const rows=[['Student','S1 Online %','S1 Physical %','S2 Online %','S2 Physical %','Year Physical %','Status','Short on']];
-  S.forEach(s=>{const c=calc(s);rows.push([s.n,...c.p.map(v=>v.toFixed(1)),c.yr.toFixed(1),c.ok?'Eligible':'Not eligible',c.fails.join('; ')])});
-  const txt=rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const w=window.open('','_blank');
-  if(w){w.document.write('<pre style="white-space:pre-wrap;font:13px monospace">'+txt.replace(/</g,'&lt;')+'</pre>')}
-};
-render();
+  const rows=[['Matric number','Last name','First name','Middle name','S1 Online %','S1 Physical %','S2 Online %','S2 Physical %','Year Physical %','Status','Short on']];
+  S.forEach(s=>{const c=calc(s);rows.push([s.m,s.ln,s.fn,s.mn,...c.p.map(v=>v.toFixed(1)),c.yr.toFixed(1),c.ok?'Eligible':'Not eligible',c.fails.join('; ')])});
+  dl('attendance_results.csv',rows.map(r=>r.map(cq).join(',')).join('\n'))};
+
+/* ---- Cohorts and courses ---- */
+function renderC(){
+  const q=$('cq').value.toLowerCase();
+  const rows=C.map((c,i)=>({c,i})).filter(({c})=>Object.values(c).join(' ').toLowerCase().includes(q));
+  $('crows').innerHTML=rows.map(({c,i})=>`<tr><td>${esc(c.cohort)}</td><td>${esc(c.year)}</td><td>${esc(c.sem)}</td><td>${esc(c.title)}</td><td><b>${esc(c.code)}</b></td><td>${esc(c.cu)}</td><td>${esc(c.fac)}</td><td><button class="x" data-cdel="${i}" title="Remove">✕</button></td></tr>`).join('')||'<tr><td colspan="8" style="text-align:center;color:var(--mu)">No courses yet. Download the template and upload a CSV.</td></tr>';
+  $('sc').innerHTML='<option value="">None</option>'+C.map((c,i)=>`<option value="${i}">${esc(c.code)} · ${esc(c.cohort)}</option>`).join('');
+  save()}
+$('cq').addEventListener('input',renderC);
+$('crows').addEventListener('click',e=>{const d=e.target.dataset.cdel;if(d!==undefined){C.splice(+d,1);renderC()}});
+$('ctpl').onclick=()=>dl('courses_template.csv','cohort_name,course_year,course_semester,course_title,course_code,course_credit_unit,faculty_name\n2023/2024 Cohort,1,1,Introduction to Computer Science,CSC101,3,Faculty of Science\n2023/2024 Cohort,1,2,General Physics II,PHY102,2,Faculty of Science\n');
+$('cup').onclick=()=>$('cuf').click();
+$('cuf').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rows=parseCSV((await f.text()).replace(/^\uFEFF/,''));e.target.value='';
+  if(rows.length&&/cohort/i.test(rows[0][0]))rows.shift();
+  let add=0,upd=0,skip=0;
+  rows.forEach(r=>{const [cohort,year,sem,title,code,cu,fac]=[0,1,2,3,4,5,6].map(i=>(r[i]||'').trim());
+    if(!cohort||!title||!code||(cu&&isNaN(+cu))){skip++;return}
+    const c=C.find(x=>x.cohort.toLowerCase()===cohort.toLowerCase()&&x.code.toLowerCase()===code.toLowerCase()),o={cohort,year,sem,title,code,cu,fac};
+    if(c){Object.assign(c,o);upd++}else{C.push(o);add++}});
+  renderC();say(`Upload done: ${add} added, ${upd} updated, ${skip} skipped (cohort, title and code are required; credit unit must be a number).`,add+upd>0,'cmsg')};
+$('cex').onclick=()=>dl('courses.csv',[['cohort_name','course_year','course_semester','course_title','course_code','course_credit_unit','faculty_name'],...C.map(c=>[c.cohort,c.year,c.sem,c.title,c.code,c.cu,c.fac])].map(r=>r.map(cq).join(',')).join('\n'));
+$('sc').onchange=()=>{const c=C[+$('sc').value];if(!c)return;$('st').value=c.code+' – '+c.title;$('sm').value=/2|second/i.test(c.sem)?'2':'1'};
+
+/* ---- Sessions and QR ---- */
+const curSess=()=>sess.find(x=>x.id===$('ss').value);
+function fillSess(sel){
+  $('ss').innerHTML=sess.map(x=>`<option value="${x.id}">${esc(x.title)} · ${x.date} · Sem ${x.sem} ${x.mode}</option>`).join('')||'<option value="">No sessions yet</option>';
+  if(sel)$('ss').value=sel}
+function drawQR(c,t,s){const m=QR(t),n=m.length,z=(n+8)*s;c.width=c.height=z;const g=c.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,z,z);g.fillStyle='#000';
+  m.forEach((r,y)=>r.forEach((d,x)=>{if(d)g.fillRect((x+4)*s,(y+4)*s,s,s)}))}
+function renderQR(){
+  const ss=curSess();
+  if(!ss){$('qh').textContent='';$('qinfo').textContent='';$('qg').innerHTML='<p class="note">Create a session to generate one unique QR code per student.</p>';save();return}
+  S.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
+  $('qh').textContent=`${ss.title} · ${ss.date} · Semester ${ss.sem} · ${ss.mode}`;
+  $('qinfo').textContent=`${ss.c.filter(m=>S.some(s=>s.m===m)).length} of ${S.length} students checked in`;
+  $('qg').innerHTML=S.map((s,i)=>`<div class="qc"><canvas data-p="${esc(`ATT|${ss.id}|${s.m}|${ss.t[s.m]}`)}" data-i="${i}"></canvas><b>${esc(nm(s))}</b><small>${esc(s.m)}</small>${ss.c.includes(s.m)?'<span class="pill ok">Checked in</span><br>':''}<button class="g" data-png="${i}">Download PNG</button></div>`).join('');
+  $('qg').querySelectorAll('canvas').forEach(c=>drawQR(c,c.dataset.p,6));
+  save()}
+$('mk').onclick=()=>{
+  const title=$('st').value.trim();if(!title)return say('Enter a session title first.',0);
+  const o={id:rnd(3),title,date:$('sd').value,sem:+$('sm').value,mode:$('sx').value,t:{},c:[]};
+  sess.push(o);$('st').value='';fillSess(o.id);renderQR();say(`Session created with ${S.length} unique QR codes.`,1)};
+$('ss').onchange=renderQR;
+$('pr').onclick=()=>{if(curSess())window.print();else say('Create a session first.',0)};
+$('ds').onclick=()=>{const ss=curSess();if(ss&&confirm('Delete this session and its QR codes? Attendance counts already recorded stay.')){sess=sess.filter(x=>x!==ss);fillSess();renderQR()}};
+$('qg').addEventListener('click',e=>{
+  const i=e.target.dataset.png;if(i===undefined)return;
+  const c=document.createElement('canvas'),ss=curSess(),s=S[+i];drawQR(c,`ATT|${ss.id}|${s.m}|${ss.t[s.m]}`,10);
+  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=`QR_${s.m.replace(/[^\w-]/g,'_')}_${ss.id}.png`;a.click()});
+function checkin(){
+  const v=$('ci').value.trim();$('ci').value='';if(!v)return;
+  const p=v.split('|'),ss=sess.find(x=>x.id===p[1]),s=p[0]==='ATT'&&ss&&S.find(x=>x.m===p[2]);
+  if(!s||ss.t[s.m]!==p[3])return say('Invalid or unrecognised QR code.',0);
+  if(ss.c.includes(s.m))return say(`${nm(s)} is already checked in for this session.`,0);
+  const k=(ss.sem-1)*2+(ss.mode==='Physical'?1:0),H=held()[k];
+  if(s.a[k]>=H)return say(`${nm(s)} already has all ${H} classes counted. Raise “classes held” to record more.`,0);
+  ss.c.push(s.m);s.a[k]++;render();renderQR();say(`✓ ${nm(s)} checked in.`,1)}
+$('cb').onclick=checkin;$('ci').addEventListener('keydown',e=>{if(e.key==='Enter')checkin()});
+
+/* ---- Minimal offline QR encoder (byte mode, ECC level M, versions 1-10) ---- */
+//QR-START
+function QR(text){
+  const EC={1:[10,[[1,16]]],2:[16,[[1,28]]],3:[26,[[1,44]]],4:[18,[[2,32]]],5:[24,[[2,43]]],6:[16,[[4,27]]],7:[18,[[4,31]]],8:[22,[[2,38],[2,39]]],9:[22,[[3,36],[2,37]]],10:[26,[[4,43],[1,44]]]};
+  const AL=[0,[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
+  const E=new Array(512),L=new Array(256);
+  for(let i=0,x=1;i<255;i++){E[i]=x;L[x]=i;x<<=1;if(x&256)x^=285}
+  for(let i=255;i<512;i++)E[i]=E[i-255];
+  const mul=(a,b)=>a&&b?E[L[a]+L[b]]:0;
+  const rs=(d,n)=>{let g=[1];for(let i=0;i<n;i++){const h=new Array(g.length+1).fill(0);for(let j=0;j<g.length;j++){h[j]^=g[j];h[j+1]^=mul(g[j],E[i])}g=h}
+    const r=new Array(n).fill(0);for(const b of d){const f=b^r.shift();r.push(0);for(let i=0;i<n;i++)r[i]^=mul(g[i+1],f)}return r};
+  const bytes=[...new TextEncoder().encode(text)];
+  const cap=v=>EC[v][1].reduce((s,[n,k])=>s+n*k,0);
+  let v=1;for(;v<=10;v++)if(4+(v<10?8:16)+8*bytes.length<=cap(v)*8)break;
+  if(v>10)throw new Error('QR text too long');
+  const n=17+4*v,bits=[],put=(x,l)=>{for(let i=l-1;i>=0;i--)bits.push((x>>>i)&1)};
+  put(4,4);put(bytes.length,v<10?8:16);bytes.forEach(b=>put(b,8));
+  const tot=cap(v)*8;put(0,Math.min(4,tot-bits.length));
+  while(bits.length%8)bits.push(0);
+  for(let p=0xEC;bits.length<tot;p^=0xFD)put(p,8);
+  const cw=[];for(let i=0;i<bits.length;i+=8)cw.push(parseInt(bits.slice(i,i+8).join(''),2));
+  const [ecn,gs]=EC[v],blocks=[];let p=0;
+  gs.forEach(([c,k])=>{for(let i=0;i<c;i++){blocks.push(cw.slice(p,p+k));p+=k}});
+  const ecs=blocks.map(b=>rs(b,ecn)),out=[],mx=Math.max(...blocks.map(b=>b.length));
+  for(let i=0;i<mx;i++)blocks.forEach(b=>{if(i<b.length)out.push(b[i])});
+  for(let i=0;i<ecn;i++)ecs.forEach(e=>out.push(e[i]));
+  const M=Array.from({length:n},()=>Array(n).fill(false)),F=Array.from({length:n},()=>Array(n).fill(false));
+  const set=(x,y,d)=>{M[y][x]=d;F[y][x]=true};
+  for(let i=0;i<n;i++){set(6,i,i%2==0);set(i,6,i%2==0)}
+  for(const [cx,cy] of [[3,3],[n-4,3],[3,n-4]])for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){
+    const x=cx+dx,y=cy+dy;if(x<0||y<0||x>=n||y>=n)continue;const d=Math.max(Math.abs(dx),Math.abs(dy));set(x,y,d!==4&&d!==2)}
+  const al=AL[v],last=al.length-1;
+  al.forEach((cx,i)=>al.forEach((cy,j)=>{if((i==0&&j==0)||(i==0&&j==last)||(i==last&&j==0))return;
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)set(cx+dx,cy+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1)}));
+  const fmt=k=>{let r=k;for(let i=0;i<10;i++)r=(r<<1)^((r>>>9)*0x537);const b=((k<<10)|r)^0x5412,g=i=>((b>>>i)&1)!=0;
+    for(let i=0;i<6;i++)set(8,i,g(i));set(8,7,g(6));set(8,8,g(7));set(7,8,g(8));for(let i=9;i<15;i++)set(14-i,8,g(i));
+    for(let i=0;i<8;i++)set(n-1-i,8,g(i));for(let i=8;i<15;i++)set(8,n-15+i,g(i));set(8,n-8,true)};
+  fmt(0);
+  if(v>=7){let r=v;for(let i=0;i<12;i++)r=(r<<1)^((r>>>11)*0x1F25);const b=(v<<12)|r;
+    for(let i=0;i<18;i++){const d=((b>>>i)&1)!=0,a=n-11+i%3,c=Math.floor(i/3);set(a,c,d);set(c,a,d)}}
+  let i=0;
+  for(let right=n-1;right>=1;right-=2){if(right==6)right=5;
+    for(let vert=0;vert<n;vert++)for(let j=0;j<2;j++){const x=right-j,up=((right+1)&2)==0,y=up?n-1-vert:vert;
+      if(!F[y][x]&&i<out.length*8){M[y][x]=((out[i>>>3]>>>(7-(i&7)))&1)!=0;i++}}}
+  const mf=[(x,y)=>(x+y)%2==0,(x,y)=>y%2==0,(x,y)=>x%3==0,(x,y)=>(x+y)%3==0,(x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2==0,(x,y)=>x*y%2+x*y%3==0,(x,y)=>(x*y%2+x*y%3)%2==0,(x,y)=>((x+y)%2+x*y%3)%2==0];
+  const ap=k=>{for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(!F[y][x]&&mf[k](x,y))M[y][x]=!M[y][x]};
+  const pen=()=>{let q=0,dk=0;
+    for(let a=0;a<2;a++)for(let r=0;r<n;r++){let run=1;for(let c=1;c<n;c++){const x=a?M[c][r]:M[r][c],y=a?M[c-1][r]:M[r][c-1];if(x===y){run++;if(run===5)q+=3;else if(run>5)q++}else run=1}}
+    for(let y=0;y<n;y++)for(let x=0;x<n;x++){if(M[y][x])dk++;if(x&&y&&M[y][x]===M[y][x-1]&&M[y][x]===M[y-1][x]&&M[y][x]===M[y-1][x-1])q+=3}
+    return q+Math.floor(Math.abs(dk*20-n*n*10)/(n*n))*10};
+  let best=0,bp=1e9;for(let k=0;k<8;k++){ap(k);const q=pen();if(q<bp){bp=q;best=k}ap(k)}
+  ap(best);fmt(best);return M}
+//QR-END
+
+renderC();fillSess();render();renderQR();
 </script>
 </body>
 </html>
