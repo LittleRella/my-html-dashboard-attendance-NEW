@@ -39,14 +39,20 @@ td small{color:var(--mu)}
 .why{display:block;font-size:11px;color:var(--mu);white-space:normal;max-width:170px;margin:2px auto 0}
 .x{background:none;color:var(--mu);padding:2px 6px}
 .note{color:var(--mu);font-size:12px;margin:8px 0}.gd{color:var(--ok)}.bd{color:var(--bad)}
-.frm{display:grid;grid-template-columns:1.4fr 2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin:10px 0}
+.frm{display:grid;grid-template-columns:1.4fr .7fr 2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin:10px 0}
 .qg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
 .qc{border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}
 .qc canvas{width:100%;max-width:150px;height:auto;background:#fff;border-radius:4px}
 .qc b{display:block;font-size:12px}.qc small{color:var(--mu);font-size:11px;display:block}
 .qc button{margin-top:4px;padding:2px 8px;font-size:12px}
 .sm{padding:3px 8px;font-size:12px}.sm:disabled{opacity:.4;cursor:not-allowed}textarea{width:100%;resize:vertical}
-@media(max-width:720px){.frm{grid-template-columns:1fr 1fr}}
+.am{background:#fff1c2;color:#7a5200}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .am{background:#43361a;color:#f0c25e}}
+:root[data-theme="dark"] .am{background:#43361a;color:#f0c25e}
+.mk{color:var(--ok);font-weight:700}.dim{background:var(--bg);color:var(--mu)}
+.frm2{display:grid;grid-template-columns:2fr 1.2fr .8fr;gap:8px;align-items:end;margin:10px 0}
+.pinbig{font-size:18px;padding:4px 14px;letter-spacing:.15em}
+@media(max-width:720px){.frm{grid-template-columns:1fr 1fr}.frm2{grid-template-columns:1fr}}
 @media print{body{background:#fff;color:#000}.noprint{display:none!important}.qc{break-inside:avoid;border-color:#999}.qc small{color:#555}.qc button{display:none}}
 </style>
 </head>
@@ -90,6 +96,16 @@ td small{color:var(--mu)}
   </table></div>
   <p class="note">Eligible means all five checks pass: online and physical each reach the semester minimum in both semesters, and combined physical attendance reaches the year minimum.</p>
 
+  <div class="card" id="cap" style="margin-top:16px">
+    <h2>Course attendance from scans</h2>
+    <p class="note" style="margin-top:0">Each QR code carries its course and session number. When a student’s code is scanned, the student appears here under that course and session. The status uses the semester minimum set at the top and the course’s number of sessions.</p>
+    <div class="tools"><select id="ca" style="min-width:280px"></select><button class="g" id="cax">Export course attendance CSV</button></div>
+    <div class="note" id="cai"></div>
+    <div style="font-weight:600;margin:6px 0 2px">Recent scans</div>
+    <div class="note" id="cas" style="margin-top:0"></div>
+    <div class="card tw"><table style="min-width:900px"><thead id="cah"></thead><tbody id="cab"></tbody></table></div>
+  </div>
+
   <div class="card" style="margin-top:16px">
     <h2>Cohorts and courses</h2>
     <p class="note" style="margin-top:0">Upload the courses each cohort takes. When you create a session, you can pick a course to fill in its title and semester.</p>
@@ -105,38 +121,74 @@ td small{color:var(--mu)}
   </div>
   </div>
 
+  <div class="card noprint" id="svc" style="margin-top:16px">
+    <h2>Online check-in: students use their own phones</h2>
+    <p class="note" style="margin-top:0">Connect a small service (a Google Sheet plus a free Google script that you own). Once connected, each student’s QR code opens a page on their phone where they confirm their attendance, and the check-in appears on this dashboard within seconds. Connect it <b>before</b> you generate or send QR codes, because the QR code content changes once the service is connected.</p>
+    <details><summary><b>Set-up steps (once, about 5 minutes)</b></summary>
+      <ol class="note">
+        <li>Click “Download service code”. Your admin key is filled in for you.</li>
+        <li>Create a new Google Sheet (sheets.new), then Extensions → Apps Script. Delete the sample code, paste in the contents of the downloaded file, and click Save.</li>
+        <li>Click Deploy → New deployment → Web app. Set “Execute as” to <b>Me</b> and “Who has access” to <b>Anyone</b>. Deploy, then allow the permissions. Google’s “not verified” notice is normal for your own script (Advanced → Go to …).</li>
+        <li>Copy the Web app URL (it ends in /exec), paste it below, and click “Test connection”.</li>
+      </ol>
+    </details>
+    <div class="frm2">
+      <div><label>Service URL (Web app URL)</label><input id="svu" placeholder="https://script.google.com/macros/s/…/exec"></div>
+      <div><label>Admin key</label><input id="svk" type="password" autocomplete="off" placeholder="Filled in by the download"></div>
+      <div><label>Check-in stays open (minutes)</label><input type="number" id="svw" min="5" step="5" value="180"></div>
+    </div>
+    <div class="tools">
+      <label style="display:flex;gap:6px;align-items:center;margin:0;color:var(--tx)"><input type="checkbox" id="svp" style="width:auto;min-width:0" checked> Require a class PIN (read it out in the room or call)</label>
+      <button id="svt">Test connection</button>
+      <button class="g" id="svd">⬇ Download service code</button>
+    </div>
+    <div class="note" id="svm" aria-live="polite"></div>
+    <div class="tools" style="border-top:1px solid var(--bd);padding-top:10px">
+      <button id="svs">Publish / reopen check-in</button>
+      <button class="g" id="svx">Close check-in now</button>
+      <button class="g" id="svf">Fetch check-ins now</button>
+      <button class="g" id="svr">Re-fetch all</button>
+    </div>
+    <div class="note" id="svi"></div>
+  </div>
+
   <div class="card" id="qs" style="margin-top:16px">
     <div class="noprint">
       <h2>Sessions and QR codes</h2>
-      <p class="note" style="margin-top:0">Each session gives every student a different QR code. Checking in a student adds 1 to their attended count for that session’s semester and mode.</p>
+      <p class="note" style="margin-top:0">Each session gives every student a different QR code that is linked to the course and session number you pick. When a code is scanned, the student is recorded under that course (see “Course attendance from scans” above) and their semester count goes up by 1. With the online service connected, students scan their own code with their phone camera and confirm; their check-ins arrive here automatically. The lecturer’s scanner below keeps working too.</p>
       <div class="frm">
         <div><label>Course (optional)</label><select id="sc"><option value="">None</option></select></div>
+        <div><label>Session no.</label><input type="number" id="sn" min="1" step="1" disabled placeholder="Pick course"></div>
         <div><label>Session title</label><input id="st" placeholder="e.g. CSC101 Week 3 Lecture"></div>
         <div><label>Date</label><input type="date" id="sd"></div>
         <div><label>Semester</label><select id="sm"><option value="1">Semester 1</option><option value="2">Semester 2</option></select></div>
         <div><label>Mode</label><select id="sx"><option>Physical</option><option>Online</option></select></div>
         <button id="mk">Generate QR codes</button>
       </div>
+      <div class="note" id="sh" style="margin-top:0"></div>
       <div class="tools" style="margin-top:0">
         <select id="ss" style="min-width:260px"></select>
         <button class="g" id="pr">🖨 Print QR sheet</button>
         <button class="g" id="ds">Delete session</button>
         <input id="ci" placeholder="Check in: scan or paste QR text…" style="min-width:260px">
         <button id="cb">Check in</button>
+        <button class="g" id="cam">📷 Scan with camera</button>
       </div>
+      <div id="camw" hidden style="max-width:360px;margin-bottom:8px"><video id="cv" playsinline muted style="width:100%;border-radius:10px;background:#000"></video></div>
+      <div class="card" id="lc" hidden style="margin:8px 0;border-width:2px"></div>
     </div>
-    <h2 id="qh"></h2><div class="note" id="qinfo"></div>
+    <h2 id="qh"></h2><div class="note" id="qinfo"></div><div id="pinb" class="noprint"></div>
     <div class="qg" id="qg"></div>
     <div class="noprint" style="margin-top:20px;border-top:1px solid var(--bd);padding-top:14px">
       <h2>Send QR codes to students</h2>
       <p class="note" style="margin-top:0">Each button prepares that student’s own message using the LBS email or phone number from the student CSV. Email downloads the QR image and opens a draft, so attach the downloaded PNG before sending. WhatsApp and SMS open a ready message (send the downloaded PNG in the chat). On a phone, Share attaches the image directly. Nothing is sent automatically.</p>
-      <label>Message (placeholders: {first} {name} {matric} {session} {date} {mode} {sem} {code})</label>
+      <label>Message (placeholders: {first} {name} {matric} {session} {date} {mode} {sem} {no} {course} {code})</label>
       <textarea id="mt" rows="7">Hello {first},
 
-Your personal attendance QR code for {session} ({date}, {mode}, {sem}) is attached. Please show it on your phone or as a printout when you arrive.
+Your personal attendance QR code for {session} ({date}, {mode}, {sem}) is attached. Scan it with your phone camera and tap “Confirm my attendance”. Your lecturer will give you a class PIN to enter. The code is only for you, so please do not share it.
 
 Matric number: {matric}
-Backup code (if the image does not open): {code}
+If the image does not open, use this link: {code}
 
 Thank you.</textarea>
       <div class="tools">
@@ -158,10 +210,11 @@ const KEY='att-dash-v2';
 const seedN=[["Okafor","Adaeze","Chioma"],["Bakare","Tunde",""],["Eze","Chiamaka","Grace"],["Musa","Ibrahim",""],["Adeyemi","Funke","Titilayo"],["Nwosu","Emeka",""],["Yusuf","Zainab","Aisha"],["Alabi","Segun","Michael"],["Obi","Ngozi",""],["Lawal","Bola","Kemi"],["Umeh","Kelechi",""],["Sani","Halima",""]];
 const seed=[[28,38,26,34],[22,30,20,25],[30,40,28,36],[26,18,25,14],[24,34,22,30],[20,24,18,20],[29,36,27,33],[25,22,23,15],[27,39,24,35],[18,26,20,22],[30,31,28,30],[23,35,26,36]];
 let S=seedN.map((n,i)=>({m:'CSC/2023/'+String(i+1).padStart(3,'0'),ln:n[0],fn:n[1],mn:n[2],em:'student'+(i+1)+'@example.com',ph:'',a:seed[i].slice()}));
+let SV={url:'',key:'',win:180,pin:true,cur:0};
 let sess=[],C=[{cohort:'2023/2024 Cohort',year:'1',sem:'1',title:'Introduction to Computer Science',code:'CSC101',cu:'3',ns:'22',fac:'Faculty of Science'},{cohort:'2023/2024 Cohort',year:'1',sem:'2',title:'General Physics II',code:'PHY102',cu:'2',ns:'22',fac:'Faculty of Science'}];
-try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.S){S=d.S;sess=d.sess||[];C=d.C||C;if(d.mt)$('mt').value=d.mt;Object.entries(d.cfg||{}).forEach(([k,v])=>{if($(k))$(k).value=v})}}catch(e){}
+try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.S){S=d.S;sess=d.sess||[];C=d.C||C;SV=Object.assign(SV,d.sv||{});if(d.mt)$('mt').value=d.mt;Object.entries(d.cfg||{}).forEach(([k,v])=>{if($(k))$(k).value=v})}}catch(e){}
 $('sd').value=new Date().toISOString().slice(0,10);
-function save(){try{const cfg={};['t1','t2','h0','h1','h2','h3'].forEach(k=>cfg[k]=$(k).value);localStorage.setItem(KEY,JSON.stringify({S,sess,C,cfg,mt:$('mt').value}))}catch(e){}}
+function save(){try{const cfg={};['t1','t2','h0','h1','h2','h3'].forEach(k=>cfg[k]=$(k).value);localStorage.setItem(KEY,JSON.stringify({S,sess,C,cfg,sv:SV,mt:$('mt').value}))}catch(e){}}
 const okMail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e||'');
 const waNum=p=>{let d=(p||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);else if(d.startsWith('0'))d='234'+d.slice(1);else if(d.length===10&&/^[789]/.test(d))d='234'+d;return d.length>=11?d:''};
 const CS=!!navigator.canShare;
@@ -208,6 +261,7 @@ function render(){
   stats();save();
 }
 const all=()=>{render();renderQR()};
+let caK='';
 
 $('rows').addEventListener('input',e=>{
   const t=e.target,i=+t.dataset.i,k=+t.dataset.k;
@@ -257,7 +311,7 @@ function renderC(){
   const rows=C.map((c,i)=>({c,i})).filter(({c})=>Object.values(c).join(' ').toLowerCase().includes(q));
   $('crows').innerHTML=rows.map(({c,i})=>`<tr><td>${esc(c.cohort)}</td><td>${esc(c.year)}</td><td>${esc(c.sem)}</td><td>${esc(c.title)}</td><td><b>${esc(c.code)}</b></td><td>${esc(c.cu)}</td><td>${esc(c.ns||'')}</td><td>${esc(c.fac)}</td><td><button class="x" data-cdel="${i}" title="Remove">✕</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--mu)">No courses yet. Download the template and upload a CSV.</td></tr>';
   $('sc').innerHTML='<option value="">None</option>'+C.map((c,i)=>`<option value="${i}">${esc(c.code)} · ${esc(c.cohort)}</option>`).join('');
-  save()}
+  syncSn();renderCA();save()}
 $('cq').addEventListener('input',renderC);
 $('crows').addEventListener('click',e=>{const d=e.target.dataset.cdel;if(d!==undefined){C.splice(+d,1);renderC()}});
 $('ctpl').onclick=()=>dl('courses_template.csv','cohort_name,course_year,course_semester,course_title,course_code,course_credit_unit,faculty_name,number_of_sessions\n2023/2024 Cohort,1,1,Introduction to Computer Science,CSC101,3,Faculty of Science,22\n2023/2024 Cohort,1,2,General Physics II,PHY102,2,Faculty of Science,22\n');
@@ -273,7 +327,18 @@ $('cuf').onchange=async e=>{
     if(c){Object.assign(c,o);upd++}else{C.push(o);add++}});
   renderC();say(`Upload done: ${add} added, ${upd} updated, ${skip} skipped (cohort, title and code are required; credit unit and number of sessions must be numbers).`,add+upd>0,'cmsg')};
 $('cex').onclick=()=>dl('courses.csv',[['cohort_name','course_year','course_semester','course_title','course_code','course_credit_unit','faculty_name','number_of_sessions'],...C.map(c=>[c.cohort,c.year,c.sem,c.title,c.code,c.cu,c.fac,c.ns||''])].map(r=>r.map(cq).join(',')).join('\n'));
-$('sc').onchange=()=>{const v=$('sc').value,c=v===''?null:C[+v];if(!c)return;$('st').value=c.code+' – '+c.title;$('sm').value=/2|second/i.test(c.sem)?'2':'1'};
+$('sc').onchange=()=>{const v=$('sc').value,c=v===''?null:C[+v];syncSn();if(!c)return;$('st').value=c.code+' – '+c.title;$('sm').value=/2|second/i.test(c.sem)?'2':'1'};
+
+/* ---- Session numbers per course ---- */
+const ckOf=c=>c?c.code+'|'+c.cohort:'';
+function syncSn(){
+  const v=$('sc').value,c=v===''?null:C[+v],sn=$('sn'),h=$('sh');
+  sn.disabled=!c;
+  if(!c){sn.value='';sn.placeholder='Pick course';h.textContent='';return}
+  const ck=ckOf(c),used=sess.filter(x=>x.ck===ck&&x.no).map(x=>x.no).sort((a,b)=>a-b),tot=+c.ns||0;
+  let n=1;while(used.includes(n))n++;
+  sn.value=tot&&n>tot?'':n;sn.max=tot||'';sn.placeholder='No.';
+  h.textContent=`${c.code}: ${used.length?'session numbers already used: '+used.join(', '):'no sessions created yet'}${tot?` (course has ${tot} sessions)`:''}. The next free number is filled in; you can change it.`}
 
 /* ---- Sessions and QR ---- */
 const curSess=()=>sess.find(x=>x.id===$('ss').value);
@@ -285,17 +350,19 @@ function drawQR(c,t,s){const m=QR(t),n=m.length,z=(n+8)*s;c.width=c.height=z;con
   m.forEach((r,y)=>r.forEach((d,x)=>{if(d)g.fillRect((x+4)*s,(y+4)*s,s,s)}))}
 function renderQR(){
   const ss=curSess();
-  if(!ss){$('qh').textContent='';$('qinfo').textContent='';$('qg').innerHTML='<p class="note">Create a session to generate one unique QR code per student.</p>';renderSend();save();return}
+  if(!ss){$('qh').textContent='';$('qinfo').textContent='';$('qg').innerHTML='<p class="note">Create a session to generate one unique QR code per student.</p>';$('pinb').innerHTML='';renderSend();renderCA();renderSvc();save();return}
   S.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
   $('qh').textContent=`${ss.title}${ss.no?` · Session ${ss.no}${ss.tot?' of '+ss.tot:''}`:''} · ${ss.date} · Semester ${ss.sem} · ${ss.mode}`;
   $('qinfo').textContent=`${ss.c.filter(m=>S.some(s=>s.m===m)).length} of ${S.length} students checked in`;
-  $('qg').innerHTML=S.map((s,i)=>`<div class="qc"><canvas data-p="${esc(`ATT|${ss.id}|${s.m}|${ss.t[s.m]}`)}" data-i="${i}"></canvas><b>${esc(nm(s))}</b><small>${esc(s.m)}</small>${ss.c.includes(s.m)?'<span class="pill ok">Checked in</span><br>':''}<button class="g" data-png="${i}">Download PNG</button></div>`).join('');
-  $('qg').querySelectorAll('canvas').forEach(c=>drawQR(c,c.dataset.p,6));
-  renderSend();save()}
+  $('pinb').innerHTML=ss.pin?`<span class="pill ok pinbig" title="Read this out to the class">Class PIN ${esc(ss.pin)}</span> <span class="note">Read it out in the room or call. It is not printed on the QR sheet.</span>`:'';
+  $('qg').innerHTML=S.map((s,i)=>`<div class="qc"><canvas data-p="${esc(payload(ss,s))}" data-i="${i}"></canvas><b>${esc(nm(s))}</b><small>${esc(s.m)}</small>${ss.cn?`<small>${esc(ss.cn)} · Session ${ss.no}</small>`:''}${ss.c.includes(s.m)?'<span class="pill ok">Checked in</span><br>':''}<button class="g" data-png="${i}">Download PNG</button></div>`).join('');
+  $('qg').querySelectorAll('canvas').forEach(c=>{try{drawQR(c,c.dataset.p,6)}catch(e){}});
+  renderSend();renderCA();renderSvc();save()}
 /* ---- Send panel ---- */
-const payload=(ss,s)=>`ATT|${ss.id}|${s.m}|${ss.t[s.m]}`;
+const qrUrl=(ss,s)=>`${SV.url}${SV.url.includes('?')?'&':'?'}s=${ss.id}&m=${encodeURIComponent(s.m)}&t=${ss.t[s.m]}`;
+const payload=(ss,s)=>/^https?:\/\//.test(SV.url)?qrUrl(ss,s):`ATT|${ss.id}|${s.m}|${ss.t[s.m]}|${ss.cn||''}|${ss.no||''}`;
 const fname=(ss,s)=>`QR_${s.m.replace(/[^\w-]/g,'_')}_${ss.id}.png`;
-const msg=(ss,s)=>$('mt').value.replace(/\{(\w+)\}/g,(x,k)=>{const m={name:nm(s),first:s.fn||nm(s),matric:s.m,session:ss.title,date:ss.date,mode:ss.mode,sem:'Semester '+ss.sem,code:payload(ss,s)};return k in m?m[k]:x});
+const msg=(ss,s)=>$('mt').value.replace(/\{(\w+)\}/g,(x,k)=>{const m={name:nm(s),first:s.fn||nm(s),matric:s.m,session:ss.title,date:ss.date,mode:ss.mode,sem:'Semester '+ss.sem,no:ss.no||'',course:ss.cn?ss.cn+' – '+ss.ct:'',code:payload(ss,s)};return k in m?m[k]:x});
 function renderSend(){
   const ss=curSess(),q=$('sq').value.toLowerCase();
   if(!ss){$('sr').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu)">Create a session first.</td></tr>';$('sinfo').textContent='';return}
@@ -329,26 +396,175 @@ $('sl').onclick=()=>{const ss=curSess();if(!ss)return say('Create a session firs
   dl(`send_list_${ss.id}.csv`,rows.map(r=>r.map(cq).join(',')).join('\n'))};
 $('mk').onclick=()=>{
   const title=$('st').value.trim();if(!title)return say('Enter a session title first.',0);
-  const v=$('sc').value,c=v===''?null:C[+v],ck=c?c.code+'|'+c.cohort:'',used=ck?sess.filter(x=>x.ck===ck).length:0,tot=c&&+c.ns?+c.ns:0;
-  if(tot&&used>=tot)return say(`All ${tot} sessions for ${c.code} have already been created.`,0);
-  const o={id:rnd(3),title,date:$('sd').value,sem:+$('sm').value,mode:$('sx').value,t:{},c:[],sent:[],ck,no:ck?used+1:0,tot};
-  sess.push(o);$('st').value='';fillSess(o.id);renderQR();say(`Session created with ${S.length} unique QR codes.${o.no?` This is session ${o.no}${tot?' of '+tot:''} for ${c.code}.`:''}`,1)};
+  const v=$('sc').value,c=v===''?null:C[+v],ck=ckOf(c),tot=c&&+c.ns?+c.ns:0,no=c?+$('sn').value:0;
+  if(c){if(!Number.isInteger(no)||no<1)return say('Enter a session number (a whole number, 1 or more).',0);
+    if(tot&&no>tot)return say(`${c.code} has ${tot} sessions, so the session number can be 1 to ${tot}.`,0);
+    if(sess.some(x=>x.ck===ck&&x.no===no))return say(`Session ${no} for ${c.code} already exists. Choose another number.`,0)}
+  const o={id:rnd(3),title,date:$('sd').value,sem:+$('sm').value,mode:$('sx').value,t:{},c:[],sent:[],ck,no,tot,cn:c?c.code.replace(/\|/g,' '):'',ct:c?c.title:'',log:[],opens:Date.now(),closes:Date.now()+SV.win*60000,pin:SV.pin?pin4():''};
+  sess.push(o);$('st').value='';fillSess(o.id);renderQR();syncSn();
+  const base=`Session created with ${S.length} unique QR codes.${o.no?` This is session ${o.no}${tot?' of '+tot:''} for ${c.code}.`:''}`;
+  say(base,1);
+  if(svOn()){say(base+' Publishing to the online service…',1);syncSess(o).then(()=>say(`${base} Published: students can check in until ${hhmm(o.closes)}.`,1)).catch(e=>say(`${base} Not published yet: ${e.message}`,0))}};
 $('ss').onchange=renderQR;
 $('pr').onclick=()=>{if(curSess())window.print();else say('Create a session first.',0)};
-$('ds').onclick=()=>{const ss=curSess();if(ss&&confirm('Delete this session and its QR codes? Attendance counts already recorded stay.')){sess=sess.filter(x=>x!==ss);fillSess();renderQR()}};
+$('ds').onclick=()=>{const ss=curSess();if(ss&&confirm('Delete this session and its QR codes? Attendance counts already recorded stay.')){sess=sess.filter(x=>x!==ss);fillSess();renderQR();syncSn()}};
 $('qg').addEventListener('click',e=>{
   const i=e.target.dataset.png;if(i===undefined)return;
-  const c=document.createElement('canvas'),ss=curSess(),s=S[+i];drawQR(c,`ATT|${ss.id}|${s.m}|${ss.t[s.m]}`,10);
+  const c=document.createElement('canvas'),ss=curSess(),s=S[+i];drawQR(c,payload(ss,s),10);
   const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download=`QR_${s.m.replace(/[^\w-]/g,'_')}_${ss.id}.png`;a.click()});
-function checkin(){
-  const v=$('ci').value.trim();$('ci').value='';if(!v)return;
-  const p=v.split('|'),ss=sess.find(x=>x.id===p[1]),s=p[0]==='ATT'&&ss&&S.find(x=>x.m===p[2]);
-  if(!s||ss.t[s.m]!==p[3])return say('Invalid or unrecognised QR code.',0);
-  if(ss.c.includes(s.m))return say(`${nm(s)} is already checked in for this session.`,0);
+function showLast(h,ok){const c=$('lc');c.hidden=false;c.innerHTML=h;c.style.borderColor=ok?'var(--ok)':'var(--bad)'}
+const reject=m=>{showLast(`<b>${esc(m)}</b>`,0);say(m,0)};
+function record(ss,s,t,src){
   const k=(ss.sem-1)*2+(ss.mode==='Physical'?1:0),H=held()[k];
-  if(s.a[k]>=H)return say(`${nm(s)} already has all ${H} classes counted. Raise “classes held” to record more.`,0);
-  ss.c.push(s.m);s.a[k]++;render();renderQR();say(`✓ ${nm(s)} checked in.`,1)}
-$('cb').onclick=checkin;$('ci').addEventListener('keydown',e=>{if(e.key==='Enter')checkin()});
+  ss.log=ss.log||[];ss.c.push(s.m);ss.log.push({m:s.m,t,src});
+  let over=false;if(s.a[k]<H)s.a[k]++;else over=true;
+  return{H,over}}
+function checkin(v){
+  v=(typeof v==='string'?v:$('ci').value).trim();$('ci').value='';if(!v)return;
+  let p=v.split('|');
+  if(/^https?:\/\//i.test(v)){try{const u=new URL(v);p=['ATT',u.searchParams.get('s'),u.searchParams.get('m'),u.searchParams.get('t'),'','']}catch(e){}}
+  const ss=sess.find(x=>x.id===p[1]),s=p[0]==='ATT'&&ss&&S.find(x=>x.m===p[2]);
+  if(!s||ss.t[s.m]!==p[3]||(p[4]&&ss.cn&&p[4]!==ss.cn))return reject('Invalid or unrecognised QR code.');
+  const course=ss.cn?`${ss.cn} – ${ss.ct}${ss.no?' · Session '+ss.no:''}`:'No course linked';
+  if(ss.c.includes(s.m))return reject(`${nm(s)} is already checked in for ${course}.`);
+  const rc=record(ss,s,Date.now(),'scanner');
+  const note=rc.over?` The semester ${ss.mode.toLowerCase()} count is already at ${rc.H} classes held; raise “classes held” if needed.`:'';
+  if(ss.ck)caK=ss.ck;
+  render();renderQR();
+  showLast(`<b class="mk">✓ Attendance recorded</b><br><b>${esc(nm(s))}</b> · ${esc(s.m)}<br>${esc(course)} · ${esc(ss.mode)} · Semester ${ss.sem}<br><small>${new Date().toLocaleString()}</small>`,1);
+  say(`✓ ${nm(s)} checked in.${note}`,!note)}
+$('cb').onclick=()=>checkin();$('ci').addEventListener('keydown',e=>{if(e.key==='Enter')checkin()});
+
+/* ---- Camera scanning ---- */
+let camS=null,camT=null,lastCode='',lastAt=0;
+function stopCam(){clearInterval(camT);if(camS)camS.getTracks().forEach(t=>t.stop());camS=null;$('camw').hidden=true;$('cam').textContent='📷 Scan with camera'}
+$('cam').onclick=async()=>{
+  if(camS)return stopCam();
+  if(!('BarcodeDetector' in window)||!navigator.mediaDevices)return say('This browser cannot read QR codes with the camera. Use a handheld scanner, paste the code into the box, or open the dashboard in Chrome.',0);
+  try{
+    const det=new BarcodeDetector({formats:['qr_code']});
+    camS=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const v=$('cv');v.srcObject=camS;await v.play();$('camw').hidden=false;$('cam').textContent='Stop camera';
+    camT=setInterval(async()=>{try{const r=await det.detect(v);if(r.length){const t=r[0].rawValue,n=Date.now();if(t!==lastCode||n-lastAt>4000){lastCode=t;lastAt=n;checkin(t)}}}catch(e){}},300)}
+  catch(e){say('Could not start the camera. Allow camera access and try again.',0);stopCam()}};
+
+/* ---- Course attendance from scans ---- */
+function courseInfo(k){
+  const c=C.find(x=>ckOf(x)===k),ss=sess.filter(x=>x.ck===k&&x.no).sort((a,b)=>a.no-b.no),f=ss[0]||{};
+  return{ss,code:c?c.code:(f.cn||k.split('|')[0]),title:c?c.title:(f.ct||''),cohort:c?c.cohort:(k.split('|')[1]||''),tot:c&&+c.ns?+c.ns:(f.tot||0)}}
+function caData(){
+  const I=courseInfo(caK),t1=+$('t1').value||0,ss=I.ss;
+  const N=Math.min(60,Math.max(I.tot,...ss.map(x=>x.no),1)),held=ss.length;
+  const req=I.tot?Math.ceil(I.tot*t1/100-1e-9):0,allow=I.tot?I.tot-req:0;
+  const rows=S.map(s=>{
+    const marks=Array.from({length:N},(_,i)=>{const x=ss.find(z=>z.no===i+1);return x?(x.c.includes(s.m)?1:0):-1});
+    const att=marks.filter(m=>m===1).length,pH=held?att/held*100:0,pT=I.tot?att/I.tot*100:0,missed=held-att;
+    const st=I.tot?(att>=req?'Met':missed<=allow?'On track':'Not reachable'):(held?(pH>=t1?'On track':'Below'):'-');
+    return{s,marks,att,pH,pT,st}});
+  return{I,N,held,rows,t1}}
+function renderCA(){
+  const keys=[...new Set([...C.map(ckOf),...sess.filter(x=>x.ck).map(x=>x.ck)])];
+  $('ca').innerHTML=keys.length?keys.map(k=>{const i=courseInfo(k);return `<option value="${esc(k)}">${esc(i.code)} – ${esc(i.title)} (${esc(i.cohort)})</option>`}).join(''):'<option value="">No courses yet</option>';
+  if(!keys.includes(caK))caK=keys[0]||'';$('ca').value=caK;
+  const rec=sess.flatMap(x=>(x.log||[]).map(l=>({...l,x}))).sort((a,b)=>b.t-a.t).slice(0,8);
+  $('cas').innerHTML=rec.length?rec.map(r=>{const st=S.find(z=>z.m===r.m);return `${esc(new Date(r.t).toLocaleString())} · <b>${esc(st?nm(st):r.m)}</b> (${esc(r.m)}) · ${esc(r.x.cn||'No course')}${r.x.no?' · Session '+r.x.no:''}${r.src==='phone'?' · own phone':''}`}).join('<br>'):'No scans yet.';
+  if(!caK){$('cah').innerHTML='';$('cab').innerHTML='';$('cai').textContent='Upload a course CSV, then create sessions for it.';return}
+  const D=caData(),I=D.I,cls={Met:'ok','On track':'am','Not reachable':'no',Below:'no'};
+  $('cai').textContent=`${I.code} – ${I.title}: ${D.held} session${D.held===1?'':'s'} created${I.tot?' of '+I.tot:''} · ${D.rows.reduce((t,r)=>t+r.att,0)} attendance records`;
+  $('cah').innerHTML='<tr><th>Student</th>'+Array.from({length:D.N},(_,i)=>`<th>${i+1}</th>`).join('')+`<th>Attended</th><th>Held</th><th>% of held</th><th>% of total</th><th>${D.t1}% status</th></tr>`;
+  $('cab').innerHTML=D.rows.map(r=>`<tr><td><b>${esc(nm(r.s))}</b><br><small>${esc(r.s.m)}</small></td>`+r.marks.map(m=>m===1?'<td class="mk">✓</td>':m===0?'<td>–</td>':'<td class="dim"></td>').join('')+`<td><b>${r.att}</b></td><td>${D.held}</td><td>${D.held?r.pH.toFixed(1)+'%':'-'}</td><td>${I.tot?r.pT.toFixed(1)+'%':'-'}</td><td><span class="pill ${cls[r.st]||''}">${r.st}</span></td></tr>`).join('')}
+$('ca').onchange=()=>{caK=$('ca').value;renderCA()};
+$('cax').onclick=()=>{
+  if(!caK)return say('No course selected.',0);
+  const D=caData(),I=D.I,rows=[['matric_number','last_name','first_name','middle_name','course_code','course_title',...Array.from({length:D.N},(_,i)=>'session_'+(i+1)),'attended','sessions_held','percent_of_held','percent_of_total','status']];
+  D.rows.forEach(r=>rows.push([r.s.m,r.s.ln,r.s.fn,r.s.mn,I.code,I.title,...r.marks.map(m=>m===1?1:m===0?0:''),r.att,D.held,D.held?r.pH.toFixed(1):'',I.tot?r.pT.toFixed(1):'',r.st]));
+  dl(`course_attendance_${I.code.replace(/[^\w-]/g,'_')}.csv`,rows.map(r=>r.map(cq).join(',')).join('\n'))};
+
+/* ---- Online check-in service ---- */
+const GS_SRC="/**\n * Attendance check-in service for the Attendance Dashboard.\n *\n * SET-UP (once, about 5 minutes)\n *  1. Create a new Google Sheet (sheets.new). This sheet will hold your records.\n *  2. In the sheet: Extensions > Apps Script. Delete any code there, paste this whole file, click Save.\n *  3. Click Deploy > New deployment > the gear icon > Web app.\n *       Execute as: Me\n *       Who has access: Anyone\n *     Click Deploy and allow the permissions Google asks for\n *     (\"Google hasn't verified this app\" > Advanced > Go to ... is expected for your own script).\n *  4. Copy the Web app URL (it ends in /exec) and paste it into the dashboard, then click \"Test connection\".\n *\n * If you change this code later, use Deploy > Manage deployments > edit > Version: New version > Deploy.\n *\n * What it stores (in the sheet you created):\n *   Sessions : one row per published session (including each student's private link code)\n *   CheckIns : one row per student check-in\n */\n\nvar ADMIN_KEY = 'CHANGE-THIS-SECRET';\nvar PLACEHOLDER_KEY = 'CHANGE-THIS-SECRET';\nvar VERSION = '1';\n\n/* ---------- storage helpers ---------- */\n\nfunction book_() { return SpreadsheetApp.getActiveSpreadsheet(); }\n\nfunction makeSheet_(name, headers, textCols) {\n  var b = book_();\n  var sh = b.getSheetByName(name);\n  if (!sh) {\n    sh = b.insertSheet(name);\n    sh.appendRow(headers);\n    sh.setFrozenRows(1);\n    for (var i = 0; i < textCols.length; i++) {\n      sh.getRange(textCols[i] + ':' + textCols[i]).setNumberFormat('@');\n    }\n  }\n  return sh;\n}\n\nfunction sessionsSheet_() {\n  return makeSheet_('Sessions',\n    ['id', 'title', 'course', 'no', 'date', 'mode', 'sem', 'opens_ms', 'closes_ms', 'pin', 'tokens_json'],\n    ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'J', 'K']);\n}\n\nfunction checkinsSheet_() {\n  return makeSheet_('CheckIns',\n    ['session_id', 'matric_number', 'name', 'time_ms', 'time', 'session', 'course', 'no'],\n    ['A', 'B', 'C', 'E', 'F', 'G', 'H']);\n}\n\nfunction safeParse_(s) {\n  try { var o = JSON.parse(s); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; }\n}\n\nfunction fmt_(ms) {\n  return Utilities.formatDate(new Date(ms), Session.getScriptTimeZone(), 'd MMM yyyy, HH:mm');\n}\n\nfunction findSession_(id) {\n  var sh = book_().getSheetByName('Sessions');\n  if (!sh) return null;\n  var n = sh.getLastRow() - 1;\n  if (n < 1) return null;\n  var v = sh.getRange(2, 1, n, 11).getValues();\n  for (var i = 0; i < n; i++) {\n    if (String(v[i][0]) === String(id)) {\n      return {\n        row: i + 2, id: String(v[i][0]), title: String(v[i][1]), course: String(v[i][2]),\n        no: String(v[i][3]), date: String(v[i][4]), mode: String(v[i][5]), sem: String(v[i][6]),\n        opens: Number(v[i][7]) || 0, closes: Number(v[i][8]) || 0, pin: String(v[i][9] || ''),\n        tokens: safeParse_(v[i][10])\n      };\n    }\n  }\n  return null;\n}\n\n/** Returns the recorded time text if this student already checked in to this session, else ''. */\nfunction findCheckIn_(sid, matric) {\n  var sh = book_().getSheetByName('CheckIns');\n  if (!sh) return '';\n  var n = sh.getLastRow() - 1;\n  if (n < 1) return '';\n  var v = sh.getRange(2, 1, n, 5).getValues();\n  for (var i = 0; i < n; i++) {\n    if (String(v[i][0]) === String(sid) && String(v[i][1]) === String(matric)) return String(v[i][4]);\n  }\n  return '';\n}\n\n/* ---------- check-in (called from the student's phone page) ---------- */\n\nfunction checkIn(sid, matric, token, pin) {\n  var lock = LockService.getScriptLock();\n  if (!lock.tryLock(20000)) {\n    return { ok: false, retry: true, msg: 'The system is busy. Please tap the button again in a moment.' };\n  }\n  try {\n    return doCheckIn_(String(sid || ''), String(matric || ''), String(token || ''), String(pin || ''));\n  } finally {\n    lock.releaseLock();\n  }\n}\n\nfunction doCheckIn_(sid, matric, token, pin) {\n  var s = findSession_(sid);\n  var e = s && s.tokens[matric];\n  if (!s || !e || e.t !== token) {\n    return { ok: false, msg: 'This check-in link is not valid, or the session is no longer active. Please ask your lecturer.' };\n  }\n  var prior = findCheckIn_(sid, matric);\n  if (prior) {\n    return { ok: true, dup: true, msg: 'Your attendance was already recorded (' + prior + '). You do not need to do anything else.' };\n  }\n  var now = Date.now();\n  if (s.opens && now < s.opens) {\n    return { ok: false, msg: 'Check-in has not opened yet. Please try again when your lecturer says so.' };\n  }\n  if (s.closes && now > s.closes) {\n    return { ok: false, msg: 'Check-in for this session is closed. Please speak to your lecturer.' };\n  }\n  var typed = String(pin).replace(/\\s/g, '');\n  if (s.pin && typed !== s.pin) {\n    return { ok: false, needPin: true, msg: typed ? 'That class PIN is not correct. Please check it and try again.' : 'Please enter the class PIN shown by your lecturer.' };\n  }\n  checkinsSheet_().appendRow([sid, matric, e.n || '', now, fmt_(now), s.title, s.course, s.no]);\n  return { ok: true, msg: 'Your attendance for ' + (s.course || s.title) + (s.no ? ' (session ' + s.no + ')' : '') + ' was recorded at ' + fmt_(now) + '.' };\n}\n\n/* ---------- dashboard API (POST, needs the admin key) ---------- */\n\nfunction doPost(e) {\n  var out;\n  try {\n    var b = JSON.parse((e && e.postData && e.postData.contents) || '{}');\n    if (ADMIN_KEY === PLACEHOLDER_KEY) {\n      out = { ok: false, error: 'The admin key in the script has not been set. Download the service code from the dashboard again, or replace CHANGE-THIS-SECRET with your own key.' };\n    } else if (b.key !== ADMIN_KEY) {\n      out = { ok: false, error: 'Wrong admin key.' };\n    } else if (b.a === 'ping') {\n      out = { ok: true, version: VERSION };\n    } else if (b.a === 'sync') {\n      out = sync_(b.session);\n    } else if (b.a === 'pull') {\n      out = pull_(Number(b.since) || 0);\n    } else {\n      out = { ok: false, error: 'Unknown request.' };\n    }\n  } catch (err) {\n    out = { ok: false, error: String(err) };\n  }\n  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);\n}\n\nfunction sync_(s) {\n  if (!s || !s.id) return { ok: false, error: 'Missing session.' };\n  var tokens = JSON.stringify(s.tokens || {});\n  if (tokens.length > 49000) return { ok: false, error: 'Too many students for one session (limit about 700).' };\n  var row = [String(s.id), String(s.title || ''), String(s.course || ''), String(s.no || ''), String(s.date || ''),\n    String(s.mode || ''), String(s.sem || ''), Number(s.opens) || 0, Number(s.closes) || 0, String(s.pin || ''), tokens];\n  var lock = LockService.getScriptLock();\n  if (!lock.tryLock(20000)) return { ok: false, error: 'The service is busy. Try again.' };\n  try {\n    var sh = sessionsSheet_();\n    var f = findSession_(s.id);\n    if (f) sh.getRange(f.row, 1, 1, 11).setValues([row]);\n    else sh.appendRow(row);\n  } finally {\n    lock.releaseLock();\n  }\n  return { ok: true };\n}\n\nfunction pull_(since) {\n  var sh = book_().getSheetByName('CheckIns');\n  var last = sh ? sh.getLastRow() - 1 : 0;\n  if (last <= since) return { ok: true, rows: [], next: since, more: false };\n  var take = Math.min(500, last - since);\n  var v = sh.getRange(since + 2, 1, take, 5).getValues();\n  var rows = [];\n  for (var i = 0; i < v.length; i++) {\n    rows.push({ sid: String(v[i][0]), m: String(v[i][1]), n: String(v[i][2]), t: Number(v[i][3]) });\n  }\n  return { ok: true, rows: rows, next: since + take, more: since + take < last };\n}\n\n/* ---------- the page a student sees ---------- */\n\nfunction esc_(s) {\n  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/<\/g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\n}\n\nfunction describe_(p) {\n  if (!p.s && !p.m && !p.t) {\n    return { state: 'idle', title: 'Check-in service is running', text: 'Students reach this service by scanning the QR code their lecturer sends them.' };\n  }\n  var s = p.s ? findSession_(p.s) : null;\n  var e = (s && p.m) ? s.tokens[p.m] : null;\n  if (!s || !e || e.t !== p.t) {\n    return { state: 'invalid', title: 'Link not valid', text: 'This check-in link is not valid, or the session is no longer active. Please ask your lecturer for a new QR code.' };\n  }\n  var prior = findCheckIn_(s.id, p.m);\n  if (prior) {\n    return { state: 'done', title: 'Attendance recorded', text: (e.n || p.m) + ', your attendance was already recorded (' + prior + ').' };\n  }\n  var now = Date.now();\n  if (s.opens && now < s.opens) {\n    return { state: 'notyet', title: 'Not open yet', text: 'Check-in for this session has not opened yet. Please try again when your lecturer says so.' };\n  }\n  if (s.closes && now > s.closes) {\n    return { state: 'closed', title: 'Check-in closed', text: 'Check-in for this session is closed. Please speak to your lecturer.' };\n  }\n  return { state: 'ready', name: e.n || p.m, matric: p.m, course: s.course, no: s.no, title: s.title, date: s.date, mode: s.mode, needPin: !!s.pin };\n}\n\nvar CSS_ = 'body{margin:0;font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f6f9;color:#1b2430}' +\n  '.c{max-width:420px;margin:0 auto;padding:28px 20px;text-align:center}' +\n  '.tag{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#667085}' +\n  'h1{font-size:22px;margin:6px 0 2px}.sub{color:#667085;margin-bottom:16px}' +\n  '.box{background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:14px;margin:12px 0;text-align:left}' +\n  'label{display:block;text-align:left;font-size:13px;color:#667085;margin:14px 0 4px}' +\n  'input{width:100%;box-sizing:border-box;font-size:22px;letter-spacing:.2em;text-align:center;padding:10px;border:1px solid #cdd3dc;border-radius:10px}' +\n  'button{width:100%;margin-top:16px;padding:14px;font-size:17px;font-weight:600;color:#fff;background:#2f5bd8;border:0;border-radius:12px}' +\n  'button:disabled{opacity:.6}#msg{margin-top:12px;min-height:22px}.err{color:#b42318}.fine{margin-top:18px;font-size:12px;color:#667085}' +\n  '.big{font-size:56px;font-weight:700;line-height:1.2}.ok{color:#0f7b4a}.bad{color:#b42318}' +\n  '@media(prefers-color-scheme:dark){body{background:#12161c;color:#e8ecf2}.box{background:#1b212a;border-color:#2c3440}input{background:#12161c;color:#e8ecf2;border-color:#2c3440}}';\n\nvar CLIENT_ = [\n  'var D=__DATA__;',\n  'var go=document.getElementById(\"go\"),msg=document.getElementById(\"msg\"),pin=document.getElementById(\"pin\");',\n  'function done(ok,title,text){var c=document.getElementById(\"c\");c.innerHTML=\"\";var a=document.createElement(\"div\");a.className=\"big \"+(ok?\"ok\":\"bad\");a.textContent=ok?\"\\\\u2713\":\"!\";var h=document.createElement(\"h1\");h.textContent=title;var t=document.createElement(\"p\");t.textContent=text;c.appendChild(a);c.appendChild(h);c.appendChild(t)}',\n  'go.onclick=function(){go.disabled=true;msg.className=\"\";msg.textContent=\"Recording\\\\u2026\";',\n  'google.script.run.withSuccessHandler(function(r){',\n  'if(r.ok){done(true,r.dup?\"Already recorded\":\"Attendance recorded\",r.msg)}',\n  'else{msg.className=\"err\";msg.textContent=r.msg;go.disabled=false;if(r.needPin&&pin){pin.focus()}else if(!r.retry){go.style.display=\"none\"}}',\n  '}).withFailureHandler(function(){msg.className=\"err\";msg.textContent=\"Could not reach the service. Check your connection and try again.\";go.disabled=false}).checkIn(D.s,D.m,D.t,pin?pin.value:\"\")};'\n].join('\\n');\n\nfunction page_(d, p) {\n  var h = '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><base target=\"_top\"><style>' + CSS_ + '<\/style><\/head><body><div class=\"c\" id=\"c\">';\n  if (d.state === 'ready') {\n    h += '<div class=\"tag\">Attendance check-in<\/div><h1>' + esc_(d.name) + '<\/h1><div class=\"sub\">' + esc_(d.matric) + '<\/div>' +\n      '<div class=\"box\"><b>' + esc_(d.course || d.title) + '<\/b>' + (d.no ? ' &middot; Session ' + esc_(d.no) : '') +\n      '<br>' + esc_(d.title) + '<br>' + esc_(d.date) + ' &middot; ' + esc_(d.mode) + '<\/div>' +\n      (d.needPin ? '<label for=\"pin\">Class PIN (shown by your lecturer)<\/label><input id=\"pin\" inputmode=\"numeric\" autocomplete=\"off\" maxlength=\"8\">' : '') +\n      '<button id=\"go\">Confirm my attendance<\/button><div id=\"msg\"><\/div>' +\n      '<div class=\"fine\">Not you? Close this page. Each QR code belongs to one student.<\/div>';\n  } else {\n    var ok = d.state === 'done' || d.state === 'idle';\n    h += '<div class=\"big ' + (ok ? 'ok' : 'bad') + '\">' + (ok ? '&#10003;' : '!') + '<\/div><h1>' + esc_(d.title) + '<\/h1><p>' + esc_(d.text) + '<\/p>';\n  }\n  h += '<\/div>';\n  if (d.state === 'ready') {\n    var data = JSON.stringify({ s: p.s, m: p.m, t: p.t }).replace(/<\/g, '\\\\u003c');\n    h += '<scr' + 'ipt>' + CLIENT_.replace('__DATA__', function () { return data; }) + '<\/scr' + 'ipt>';\n  }\n  return h + '<\/body><\/html>';\n}\n\nfunction doGet(e) {\n  var p = (e && e.parameter) || {};\n  return HtmlService.createHtmlOutput(page_(describe_(p), p))\n    .setTitle('Attendance check-in')\n    .addMetaTag('viewport', 'width=device-width, initial-scale=1');\n}\n";
+const svOn=()=>/^https?:\/\//.test(SV.url)&&!!SV.key;
+const hhmm=t=>new Date(t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+const pin4=()=>String(1000+crypto.getRandomValues(new Uint32Array(1))[0]%9000);
+let lastPull=0,svErr='',pulling=false;
+function readSv(){
+  SV.url=$('svu').value.trim();SV.key=$('svk').value.trim().replace(/[^\w-]/g,'');$('svk').value=SV.key;
+  SV.win=Math.max(5,Math.round(+$('svw').value)||180);$('svw').value=SV.win;SV.pin=$('svp').checked;
+  save();renderQR()}
+function initSvc(){$('svu').value=SV.url;$('svk').value=SV.key;$('svw').value=SV.win;$('svp').checked=SV.pin}
+function lenWarn(){
+  if(!/^https?:\/\//.test(SV.url))return;
+  const longest=S.reduce((a,s)=>s.m.length>a.length?s.m:a,'');
+  const n=new TextEncoder().encode(`${SV.url}?s=abcdef&m=${encodeURIComponent(longest)}&t=abcdef12`).length;
+  if(n>213)say(`This service URL is too long for a QR code (${n} characters; the limit is 213). Use a shorter deployment URL.`,0,'svm')}
+['svu','svk','svw','svp'].forEach(id=>$(id).addEventListener('change',()=>{readSv();lenWarn()}));
+async function svc(body){
+  let r;
+  try{r=await fetch(SV.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...body,key:SV.key})})}
+  catch(e){throw new Error('Could not reach the service. Check the URL and your internet connection.')}
+  let j;try{j=await r.json()}catch(e){throw new Error('The service did not answer correctly. Check that “Who has access” is set to Anyone and that the URL ends in /exec.')}
+  if(!j.ok)throw new Error(j.error||'The service refused the request.');
+  return j}
+function sessBody(ss){
+  ss.t=ss.t||{};S.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
+  const tok={};S.forEach(s=>{tok[s.m]={t:ss.t[s.m],n:nm(s)}});
+  return{id:ss.id,title:ss.title,course:ss.cn?ss.cn+' – '+ss.ct:'',no:ss.no||'',date:ss.date,mode:ss.mode,sem:ss.sem,opens:ss.opens||0,closes:ss.closes||0,pin:ss.pin||'',tokens:tok}}
+async function syncSess(ss){await svc({a:'sync',session:sessBody(ss)});ss.synced=Date.now();save();renderSvc()}
+function renderSvc(){
+  const i=$('svi');if(!i)return;
+  if(!svOn()){i.textContent='Not connected yet. Until you connect the service, QR codes only work with the scanner on this device.';return}
+  const ss=curSess(),p=[];
+  if(!ss)p.push('Connected. Create a session to publish it.');
+  else if(!ss.synced)p.push('This session is not published yet. Click “Publish / reopen check-in”.');
+  else p.push(`Session published at ${hhmm(ss.synced)} · `+(!ss.closes?'check-in is open (no closing time).':Date.now()>ss.closes?'check-in is closed.':`check-in is open until ${hhmm(ss.closes)}.`));
+  p.push(svErr?`Last fetch failed: ${svErr}`:lastPull?`Check-ins last fetched ${hhmm(lastPull)}.`:'Check-ins are fetched automatically every 15 seconds.');
+  i.textContent=p.join(' ')}
+$('svt').onclick=async()=>{
+  readSv();
+  if(!/^https:\/\//.test(SV.url))return say('Paste the Web app URL first (it starts with https:// and ends in /exec).',0,'svm');
+  if(!SV.key)return say('The admin key is empty. Click “Download service code” to create one, or type the key from your script.',0,'svm');
+  say('Testing…',1,'svm');
+  try{const j=await svc({a:'ping'});say(`Connected ✓ (service version ${j.version}). Students’ QR codes now open the check-in page on their phones.`,1,'svm');lenWarn();renderSvc()}
+  catch(e){say(e.message,0,'svm')}};
+$('svd').onclick=()=>{
+  if(!SV.key){SV.key=rnd(10);$('svk').value=SV.key;save()}
+  dl('attendance-service.gs',GS_SRC.replace("var ADMIN_KEY = 'CHANGE-THIS-SECRET';",()=>"var ADMIN_KEY = '"+SV.key+"';"),'text/plain');
+  say('Downloaded attendance-service.gs with your admin key filled in. Follow the set-up steps above.',1,'svm')};
+$('svs').onclick=async()=>{
+  readSv();const ss=curSess();
+  if(!ss)return say('Create a session first.',0,'svm');
+  if(!svOn())return say('Enter the service URL and admin key first.',0,'svm');
+  ss.opens=ss.opens||Date.now();ss.closes=Date.now()+SV.win*60000;if(SV.pin&&!ss.pin)ss.pin=pin4();
+  try{await syncSess(ss);renderQR();say(`Published. Students can check in until ${hhmm(ss.closes)}.`,1,'svm')}catch(e){say(e.message,0,'svm')}};
+$('svx').onclick=async()=>{
+  const ss=curSess();if(!ss)return say('Create a session first.',0,'svm');
+  if(!svOn())return say('Enter the service URL and admin key first.',0,'svm');
+  ss.closes=Date.now();
+  try{await syncSess(ss);say('Check-in closed. Students who already checked in are unaffected.',1,'svm')}catch(e){say(e.message,0,'svm')}};
+function applyOnline(r){
+  const ss=sess.find(x=>x.id===r.sid),s=ss&&S.find(x=>x.m===r.m);
+  if(!ss||!s||ss.c.includes(s.m))return null;
+  record(ss,s,r.t||Date.now(),'phone');
+  if(!caK&&ss.ck)caK=ss.ck;
+  return{ss,s}}
+async function pull(all){
+  if(!svOn()||pulling)return 0;
+  pulling=true;
+  try{
+    if(all)SV.cur=0;
+    let n=0,last=null;
+    for(let g=0;g<40;g++){
+      const j=await svc({a:'pull',since:SV.cur});
+      j.rows.forEach(r=>{const x=applyOnline(r);if(x){n++;last=x}});
+      SV.cur=j.next;if(!j.more)break}
+    lastPull=Date.now();svErr='';
+    if(n){render();renderQR();showLast(`<b class="mk">✓ ${n} new check-in${n>1?'s':''} from students’ phones</b><br>Latest: <b>${esc(nm(last.s))}</b> · ${esc(last.ss.cn||'No course')}${last.ss.no?' · Session '+last.ss.no:''}<br><small>${new Date().toLocaleString()}</small>`,1)}
+    save();renderSvc();return n}
+  catch(e){svErr=e.message;renderSvc();throw e}
+  finally{pulling=false}}
+$('svf').onclick=async()=>{try{const n=await pull();say(n?`${n} new check-in${n>1?'s':''} added.`:'No new check-ins.',1,'svm')}catch(e){say(e.message,0,'svm')}};
+$('svr').onclick=async()=>{try{const n=await pull(true);say(n?`${n} check-in${n>1?'s':''} added from the full history.`:'Nothing new in the full history.',1,'svm')}catch(e){say(e.message,0,'svm')}};
+setInterval(()=>{if(!document.hidden&&svOn())pull().catch(()=>{})},15000);
+setInterval(renderSvc,30000);
 
 /* ---- Minimal offline QR encoder (byte mode, ECC level M, versions 1-10) ---- */
 //QR-START
@@ -404,7 +620,7 @@ function QR(text){
   ap(best);fmt(best);return M}
 //QR-END
 
-renderC();fillSess();render();renderQR();
+initSvc();renderC();fillSess();render();renderQR();syncSn();renderSvc();
 </script>
 </body>
 </html>
