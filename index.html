@@ -60,7 +60,18 @@ td small{color:var(--mu)}
 <div class="wrap">
   <div class="noprint">
   <h1>Attendance Dashboard</h1>
-  <p class="sub">Upload your students, generate a unique QR code per student for every session, and track semester and year attendance.</p>
+  <p class="sub">Upload your students and courses by cohort, generate a unique QR code per student for every session, and track semester and year attendance.</p>
+
+  <div class="card" id="cobar" style="margin-bottom:12px">
+    <div class="tools" style="margin:0">
+      <label style="margin:0;color:var(--tx)"><b>Cohort</b></label>
+      <select id="co" style="min-width:240px"></select>
+      <button id="coadd">+ Add cohort</button>
+      <button class="g" id="codel">Delete cohort</button>
+      <span class="note" id="coinfo" style="margin:0"></span>
+    </div>
+    <div class="note" style="margin:6px 0 0">Everything below (students, minimums, sessions, QR codes, course tables and exports) applies to the selected cohort. A repeat student can belong to several cohorts and has a separate attendance record in each.</div>
+  </div>
 
   <div class="card grid cfg">
     <div><label>Semester minimum, online and physical (%)</label><input type="number" id="t1" value="80" min="0" max="100"></div>
@@ -83,6 +94,7 @@ td small{color:var(--mu)}
     <button class="g" id="csv">Export results CSV</button>
   </div>
   <div class="note" id="msg" aria-live="polite"></div>
+  <p class="note" style="margin-top:0">Student CSV columns: matric_number, last_name, first_name, middle_name, lbs_email, phone_number, cohort_name. A repeat student can appear on one row per cohort, or you can list several cohorts in one cell separated by semicolons. If cohort_name is blank, the student is added to the cohort selected above. In Excel, format the phone column as Text so leading zeros are kept.</p>
 
   <div class="card tw"><table>
     <thead>
@@ -154,7 +166,7 @@ td small{color:var(--mu)}
 
   <div class="card" id="qs" style="margin-top:16px">
     <div class="noprint">
-      <h2>Sessions and QR codes</h2>
+      <h2>Sessions and QR codes <span class="note" id="qco"></span></h2>
       <p class="note" style="margin-top:0">Each session gives every student a different QR code that is linked to the course and session number you pick. When a code is scanned, the student is recorded under that course (see “Course attendance from scans” above) and their semester count goes up by 1. With the online service connected, students scan their own code with their phone camera and confirm; their check-ins arrive here automatically. The lecturer’s scanner below keeps working too.</p>
       <div class="frm">
         <div><label>Course (optional)</label><select id="sc"><option value="">None</option></select></div>
@@ -182,7 +194,7 @@ td small{color:var(--mu)}
     <div class="noprint" style="margin-top:20px;border-top:1px solid var(--bd);padding-top:14px">
       <h2>Send QR codes to students</h2>
       <p class="note" style="margin-top:0">Each button prepares that student’s own message using the LBS email or phone number from the student CSV. Email downloads the QR image and opens a draft, so attach the downloaded PNG before sending. WhatsApp and SMS open a ready message (send the downloaded PNG in the chat). On a phone, Share attaches the image directly. Nothing is sent automatically.</p>
-      <label>Message (placeholders: {first} {name} {matric} {session} {date} {mode} {sem} {no} {course} {code})</label>
+      <label>Message (placeholders: {first} {name} {matric} {session} {date} {mode} {sem} {no} {course} {cohort} {code})</label>
       <textarea id="mt" rows="7">Hello {first},
 
 Your personal attendance QR code for {session} ({date}, {mode}, {sem}) is attached. Scan it with your phone camera and tap “Confirm my attendance”. Your lecturer will give you a class PIN to enter. The code is only for you, so please do not share it.
@@ -209,26 +221,52 @@ const rnd=n=>[...crypto.getRandomValues(new Uint8Array(n))].map(b=>b.toString(16
 const KEY='att-dash-v2';
 const seedN=[["Okafor","Adaeze","Chioma"],["Bakare","Tunde",""],["Eze","Chiamaka","Grace"],["Musa","Ibrahim",""],["Adeyemi","Funke","Titilayo"],["Nwosu","Emeka",""],["Yusuf","Zainab","Aisha"],["Alabi","Segun","Michael"],["Obi","Ngozi",""],["Lawal","Bola","Kemi"],["Umeh","Kelechi",""],["Sani","Halima",""]];
 const seed=[[28,38,26,34],[22,30,20,25],[30,40,28,36],[26,18,25,14],[24,34,22,30],[20,24,18,20],[29,36,27,33],[25,22,23,15],[27,39,24,35],[18,26,20,22],[30,31,28,30],[23,35,26,36]];
-let S=seedN.map((n,i)=>({m:'CSC/2023/'+String(i+1).padStart(3,'0'),ln:n[0],fn:n[1],mn:n[2],em:'student'+(i+1)+'@example.com',ph:'',a:seed[i].slice()}));
+const DEF='2023/2024 Cohort';
+let S=seedN.map((n,i)=>({m:'CSC/2023/'+String(i+1).padStart(3,'0'),ln:n[0],fn:n[1],mn:n[2],em:'student'+(i+1)+'@example.com',ph:'',ch:[DEF],ac:{[DEF]:seed[i].slice()}}));
+let COH={},CH=DEF;
+const DEFCFG=()=>({t1:80,t2:60,h:[30,40,28,36]});
+const copyCfg=c=>JSON.parse(JSON.stringify(c));
+const cfg=co=>COH[co]||(COH[co]=DEFCFG());
+const cohorts=()=>Object.keys(COH);
+const canon=n=>{n=String(n||'').trim();const l=n.toLowerCase();return cohorts().find(c=>c.toLowerCase()===l)||n};
+const inCo=(s,co)=>(s.ch||[]).includes(co===undefined?CH:co);
+const rosterOf=co=>S.filter(s=>inCo(s,co));
+const A=(s,co)=>{co=co===undefined?CH:co;s.ac=s.ac||{};return s.ac[co]||(s.ac[co]=[0,0,0,0])};
+const parseCohorts=t=>String(t||'').split(/[;|]/).map(x=>x.trim()).filter(Boolean);
+function enrol(s,names){let n=0;names.forEach(raw=>{const co=canon(raw);if(!co)return;if(!COH[co])COH[co]=copyCfg(cfg(CH));if(!inCo(s,co)){s.ch.push(co);A(s,co);n++}});return n}
 let SV={url:'',key:'',win:180,pin:true,cur:0};
 let sess=[],C=[{cohort:'2023/2024 Cohort',year:'1',sem:'1',title:'Introduction to Computer Science',code:'CSC101',cu:'3',ns:'22',fac:'Faculty of Science'},{cohort:'2023/2024 Cohort',year:'1',sem:'2',title:'General Physics II',code:'PHY102',cu:'2',ns:'22',fac:'Faculty of Science'}];
-try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.S){S=d.S;sess=d.sess||[];C=d.C||C;SV=Object.assign(SV,d.sv||{});if(d.mt)$('mt').value=d.mt;Object.entries(d.cfg||{}).forEach(([k,v])=>{if($(k))$(k).value=v})}}catch(e){}
+try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&d.S){
+  S=d.S;sess=d.sess||[];C=d.C||C;SV=Object.assign(SV,d.sv||{});if(d.mt)$('mt').value=d.mt;
+  if(d.COH){COH=d.COH;CH=d.CH||Object.keys(COH)[0]||DEF}
+  else{
+    const old=d.cfg||{},dc=(C[0]&&C[0].cohort)||DEF,dd=DEFCFG();
+    const base={t1:+old.t1||dd.t1,t2:+old.t2||dd.t2,h:[old.h0,old.h1,old.h2,old.h3].map((v,i)=>+v||dd.h[i])};
+    COH={};[dc,...C.map(c=>c.cohort)].forEach(co=>{if(!COH[co])COH[co]=copyCfg(base)});CH=dc;
+    S.forEach(s=>{if(!s.ch){s.ch=[dc];s.ac={[dc]:(s.a||[0,0,0,0]).slice()};delete s.a}});
+    sess.forEach(x=>{if(!x.co)x.co=(x.ck&&x.ck.split('|')[1])||dc})}
+}}catch(e){}
+S.forEach(s=>{s.ch=s.ch||[];s.ac=s.ac||{};s.ch.forEach(c=>cfg(c))});C.forEach(c=>cfg(c.cohort));
+sess.forEach(x=>{if(!x.co)x.co=(x.ck&&x.ck.split('|')[1])||CH;cfg(x.co)});
+if(!COH[CH])CH=cohorts()[0]||DEF;cfg(CH);
 $('sd').value=new Date().toISOString().slice(0,10);
-function save(){try{const cfg={};['t1','t2','h0','h1','h2','h3'].forEach(k=>cfg[k]=$(k).value);localStorage.setItem(KEY,JSON.stringify({S,sess,C,cfg,sv:SV,mt:$('mt').value}))}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({S,sess,C,COH,CH,sv:SV,mt:$('mt').value}))}catch(e){}}
 const okMail=e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e||'');
 const waNum=p=>{let d=(p||'').replace(/\D/g,'');if(d.startsWith('00'))d=d.slice(2);else if(d.startsWith('0'))d='234'+d.slice(1);else if(d.length===10&&/^[789]/.test(d))d='234'+d;return d.length>=11?d:''};
 const CS=!!navigator.canShare;
 const nm=s=>[s.ln,s.fn,s.mn].filter(Boolean).join(' ');
-const held=()=>[0,1,2,3].map(i=>Math.max(1,+$('h'+i).value||1));
+const held=co=>cfg(co===undefined?CH:co).h.map(v=>Math.max(1,+v||1));
+function loadCfg(){const c=cfg(CH);$('t1').value=c.t1;$('t2').value=c.t2;[0,1,2,3].forEach(i=>$('h'+i).value=c.h[i])}
 const pill=(v,t)=>`<span class="pill ${v>=t?'ok':'no'}">${v.toFixed(1)}%</span>`;
 function say(t,ok,id){const m=$(id||'msg');m.textContent=t;m.className='note '+(ok?'gd':'bd')}
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/csv'}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
 const cq=v=>'"'+String(v).replace(/"/g,'""')+'"';
 
-function calc(s){
-  const H=held(),t1=+$('t1').value||0,t2=+$('t2').value||0;
-  const p=s.a.map((a,i)=>a/H[i]*100);
-  const yr=(s.a[1]+s.a[3])/(H[1]+H[3])*100;
+function calc(s,co){
+  co=co===undefined?CH:co;
+  const H=held(co),c=cfg(co),t1=c.t1,t2=c.t2,a=A(s,co);
+  const p=a.map((v,i)=>v/H[i]*100);
+  const yr=(a[1]+a[3])/(H[1]+H[3])*100;
   const lab=['Sem 1 online','Sem 1 physical','Sem 2 online','Sem 2 physical'];
   const fails=[];
   p.forEach((v,i)=>{if(v<t1)fails.push(lab[i])});
@@ -237,15 +275,16 @@ function calc(s){
 }
 function rowHTML(s,i){
   const c=calc(s);
-  const inp=k=>`<td><input type="number" min="0" value="${s.a[k]}" data-i="${i}" data-k="${k}"></td>`;
-  return `<td><b>${esc(nm(s))}</b><br><small>${esc(s.m)}</small><br><small>${esc([s.em,s.ph].filter(Boolean).join(' · '))}</small></td>`+
+  const inp=k=>`<td><input type="number" min="0" value="${A(s)[k]}" data-i="${i}" data-k="${k}"></td>`;
+  const also=s.ch.filter(x=>x!==CH);
+  return `<td><b>${esc(nm(s))}</b><br><small>${esc(s.m)}</small><br><small>${esc([s.em,s.ph].filter(Boolean).join(' · '))}</small>${also.length?`<br><small>Also in: ${esc(also.join(', '))}</small>`:''}</td>`+
     [0,1,2,3].map(k=>inp(k)+`<td>${pill(c.p[k],c.t1)}</td>`).join('')+
     `<td>${pill(c.yr,c.t2)}</td>`+
     `<td><span class="pill ${c.ok?'ok':'no'}">${c.ok?'Eligible':'Not eligible'}</span>${c.ok?'':`<span class="why">Short: ${c.fails.join(', ')}</span>`}</td>`+
-    `<td><button class="x" data-del="${i}" title="Remove">✕</button></td>`;
+    `<td><button class="x" data-addco="${i}" title="Add this student to another cohort">＋</button><button class="x" data-del="${i}" title="Remove from this cohort">✕</button></td>`;
 }
 function stats(){
-  const r=S.map(calc),n=S.length,ok=r.filter(x=>x.ok).length;
+  const L=rosterOf(CH),r=L.map(s=>calc(s)),n=L.length,ok=r.filter(x=>x.ok).length;
   const cnt=f=>r.filter(x=>x.fails.some(f)).length;
   const card=(l,v,e='')=>`<div class="card"><div class="lbl">${l}</div><div class="big">${v}</div>${e}</div>`;
   $('stats').innerHTML=card('Students',n)+
@@ -256,32 +295,45 @@ function stats(){
 }
 function render(){
   const q=$('q').value.toLowerCase(),f=$('f').value;
-  $('rows').innerHTML=S.map((s,i)=>({s,i,c:calc(s)})).filter(({s,c})=>(nm(s)+' '+s.m).toLowerCase().includes(q)&&(f==='all'||(f==='ok')===c.ok))
-    .map(({s,i})=>`<tr>${rowHTML(s,i)}</tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--mu)">No students match.</td></tr>';
+  $('rows').innerHTML=S.map((s,i)=>({s,i})).filter(({s})=>inCo(s)).map(o=>({...o,c:calc(o.s)})).filter(({s,c})=>(nm(s)+' '+s.m).toLowerCase().includes(q)&&(f==='all'||(f==='ok')===c.ok))
+    .map(({s,i})=>`<tr>${rowHTML(s,i)}</tr>`).join('')||'<tr><td colspan="12" style="text-align:center;color:var(--mu)">No students in this cohort match. Upload a students CSV or use + Add student.</td></tr>';
   stats();save();
 }
-const all=()=>{render();renderQR()};
+const all=()=>{renderCo();render();renderQR()};
 let caK='';
 
 $('rows').addEventListener('input',e=>{
   const t=e.target,i=+t.dataset.i,k=+t.dataset.k;
-  S[i].a[k]=Math.min(Math.max(0,+t.value||0),held()[k]);
+  A(S[i])[k]=Math.min(Math.max(0,+t.value||0),held()[k]);
   const tr=t.closest('tr'),tmp=document.createElement('tr');tmp.innerHTML=rowHTML(S[i],i);
   [...tr.children].forEach((td,j)=>{if(!td.querySelector('input'))td.innerHTML=tmp.children[j].innerHTML});
   stats();save();
 });
 $('rows').addEventListener('change',render);
-$('rows').addEventListener('click',e=>{const d=e.target.dataset.del;if(d!==undefined){S.splice(+d,1);all()}});
-['t1','t2','h0','h1','h2','h3'].forEach(id=>$(id).addEventListener('input',()=>{const H=held();S.forEach(s=>s.a=s.a.map((a,k)=>Math.min(a,H[k])));render()}));
+$('rows').addEventListener('click',e=>{
+  const d=e.target.dataset.del,ad=e.target.dataset.addco;
+  if(d!==undefined){const s=S[+d];if(!s)return;
+    if(!confirm(`Remove ${nm(s)} from ${CH}? Their attendance record in this cohort will be deleted${s.ch.length>1?' (their other cohorts are kept)':' and, because they belong to no other cohort, the student will be removed completely'}.`))return;
+    s.ch=s.ch.filter(c=>c!==CH);delete s.ac[CH];if(!s.ch.length)S.splice(+d,1);all()}
+  else if(ad!==undefined){const s=S[+ad];if(!s)return;
+    const v=prompt(`Add ${nm(s)} to which cohort? Existing cohorts: ${cohorts().join(', ')}. You can type a new cohort name too.`,'');if(!v)return;
+    const n=enrol(s,parseCohorts(v));all();say(n?`${nm(s)} is now also in ${parseCohorts(v).map(canon).join(', ')}. Switch cohort above to see them there.`:`${nm(s)} was already in that cohort.`,n>0)}});
+['t1','t2','h0','h1','h2','h3'].forEach(id=>{
+  $(id).addEventListener('input',()=>{const c=cfg(CH);
+    c.t1=Math.min(100,Math.max(0,+$('t1').value||0));c.t2=Math.min(100,Math.max(0,+$('t2').value||0));
+    c.h=[0,1,2,3].map(i=>Math.max(1,Math.round(+$('h'+i).value)||1));render()});
+  $(id).addEventListener('change',()=>{const H=held();rosterOf(CH).forEach(s=>{const a=A(s);a.forEach((v,k)=>{a[k]=Math.min(v,H[k])})});loadCfg();render()})});
 $('q').addEventListener('input',render);$('f').addEventListener('change',render);
 
 $('add').onclick=()=>{
-  const v=prompt('Enter: matric number, last name, first name, middle name, LBS email, phone (middle name, email and phone can be left blank)');if(!v)return;
-  const [m,ln,fn,mn,em,ph]=v.split(',').map(x=>x.trim());
+  const v=prompt(`Enter: matric number, last name, first name, middle name, LBS email, phone, cohort (middle name, email, phone and cohort can be left blank; blank cohort means ${CH}; for several cohorts separate them with semicolons)`);if(!v)return;
+  const [m,ln,fn,mn,em,ph,coh]=v.split(',').map(x=>x.trim());
   if(!m||!(ln||fn))return say('Please give at least a matric number and a name.',0);
-  if(S.some(s=>s.m.toLowerCase()===m.toLowerCase()))return say('That matric number already exists.',0);
-  S.push({m,ln:ln||'',fn:fn||'',mn:mn||'',em:em||'',ph:ph||'',a:[0,0,0,0]});all();say('Student added.',1)};
-$('tpl').onclick=()=>dl('students_template.csv','matric_number,last_name,first_name,middle_name,lbs_email,phone_number\nCSC/2023/101,Okafor,Adaeze,Chioma,adaeze.okafor@lbs.edu.ng,08031234567\nCSC/2023/102,Bakare,Tunde,,tunde.bakare@lbs.edu.ng,+2348091234567\n');
+  const names=parseCohorts(coh);if(!names.length)names.push(CH);
+  const ex=S.find(s=>s.m.toLowerCase()===m.toLowerCase());
+  if(ex){const n=enrol(ex,names);all();return say(n?`That matric number already exists, so ${nm(ex)} was added to ${names.map(canon).join(', ')}.`:`${nm(ex)} is already in ${names.map(canon).join(', ')}.`,n>0)}
+  const s={m,ln:ln||'',fn:fn||'',mn:mn||'',em:em||'',ph:ph||'',ch:[],ac:{}};enrol(s,names);S.push(s);all();say('Student added.',1)};
+$('tpl').onclick=()=>dl('students_template.csv','matric_number,last_name,first_name,middle_name,lbs_email,phone_number,cohort_name\nCSC/2023/101,Okafor,Adaeze,Chioma,adaeze.okafor@lbs.edu.ng,08031234567,2023/2024 Cohort\nCSC/2023/102,Bakare,Tunde,,tunde.bakare@lbs.edu.ng,+2348091234567,2023/2024 Cohort\nCSC/2023/102,Bakare,Tunde,,tunde.bakare@lbs.edu.ng,+2348091234567,2024/2025 Cohort\n');
 $('up').onclick=()=>$('uf').click();
 function parseCSV(t){const rows=[];let r=[],c='',q=false;
   for(let i=0;i<t.length;i++){const ch=t[i];
@@ -293,24 +345,50 @@ $('uf').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   const rows=parseCSV((await f.text()).replace(/^\uFEFF/,''));e.target.value='';
   if(rows.length&&/matric/i.test(rows[0][0]))rows.shift();
-  let add=0,upd=0,skip=0,bad=0;
-  rows.forEach(r=>{const [m,ln,fn,mn,em,ph]=[0,1,2,3,4,5].map(i=>(r[i]||'').trim());
+  let add=0,upd=0,skip=0,bad=0,enr=0,other=false;const c0=cohorts().length,seen=new Set();
+  rows.forEach(r=>{const [m,ln,fn,mn,em,ph,coh]=[0,1,2,3,4,5,6].map(i=>(r[i]||'').trim());
     if(!m||!(ln||fn)){skip++;return}
     if(em&&!okMail(em))bad++;
-    const s=S.find(x=>x.m.toLowerCase()===m.toLowerCase());
-    if(s){s.ln=ln;s.fn=fn;s.mn=mn;s.em=em;s.ph=ph;upd++}else{S.push({m,ln,fn,mn,em,ph,a:[0,0,0,0]});add++}});
-  all();say(`Upload done: ${add} added, ${upd} updated, ${skip} skipped (missing matric number or name).${bad?` ${bad} email address${bad>1?'es look':' looks'} invalid.`:''}`,add+upd>0)};
+    const names=parseCohorts(coh);if(!names.length)names.push(CH);
+    if(names.some(n=>canon(n)!==CH))other=true;
+    const key=m.toLowerCase();let s=S.find(x=>x.m.toLowerCase()===key);
+    if(s){s.ln=ln;s.fn=fn;s.mn=mn;if(em)s.em=em;if(ph)s.ph=ph;if(!seen.has(key))upd++}
+    else{s={m,ln,fn,mn,em,ph,ch:[],ac:{}};S.push(s);add++}
+    seen.add(key);enr+=enrol(s,names)});
+  const nc=cohorts().length-c0;
+  all();say(`Upload done: ${add} student${add===1?'':'s'} added, ${upd} updated, ${enr} cohort enrolment${enr===1?'':'s'} made${nc?`, ${nc} new cohort${nc>1?'s':''} created`:''}, ${skip} skipped (missing matric number or name).${bad?` ${bad} email address${bad>1?'es look':' looks'} invalid.`:''}${other?' Some students were added to other cohorts; use the Cohort box above to switch to them.':''}`,add+upd+enr>0)};
 $('csv').onclick=()=>{
-  const rows=[['Matric number','Last name','First name','Middle name','LBS email','Phone number','S1 Online %','S1 Physical %','S2 Online %','S2 Physical %','Year Physical %','Status','Short on']];
-  S.forEach(s=>{const c=calc(s);rows.push([s.m,s.ln,s.fn,s.mn,s.em||'',s.ph||'',...c.p.map(v=>v.toFixed(1)),c.yr.toFixed(1),c.ok?'Eligible':'Not eligible',c.fails.join('; ')])});
-  dl('attendance_results.csv',rows.map(r=>r.map(cq).join(',')).join('\n'))};
+  const rows=[['Cohort','Matric number','Last name','First name','Middle name','LBS email','Phone number','S1 Online %','S1 Physical %','S2 Online %','S2 Physical %','Year Physical %','Status','Short on']];
+  rosterOf(CH).forEach(s=>{const c=calc(s);rows.push([CH,s.m,s.ln,s.fn,s.mn,s.em||'',s.ph||'',...c.p.map(v=>v.toFixed(1)),c.yr.toFixed(1),c.ok?'Eligible':'Not eligible',c.fails.join('; ')])});
+  dl('attendance_results_'+CH.replace(/[^\w-]+/g,'_')+'.csv',rows.map(r=>r.map(cq).join(',')).join('\n'))};
+
+/* ---- Cohort selector ---- */
+function renderCo(){
+  $('co').innerHTML=cohorts().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');$('co').value=CH;
+  $('coinfo').textContent=`${rosterOf(CH).length} students · ${C.filter(c=>c.cohort===CH).length} courses · ${sess.filter(x=>x.co===CH).length} sessions`;
+  $('qco').textContent='· '+CH}
+function switchCo(co){CH=co;loadCfg();renderCo();renderC();fillSess();syncSn();render();renderQR();save()}
+$('co').onchange=()=>switchCo($('co').value);
+$('coadd').onclick=()=>{
+  const v=prompt('Name of the new cohort (for example 2024/2025 Cohort):');if(!v||!v.trim())return;
+  const n=canon(v);
+  if(COH[n]){switchCo(n);return say('That cohort already exists, so it is now selected.',1)}
+  COH[n]=copyCfg(cfg(CH));switchCo(n);say(`Cohort “${n}” created with the same minimums as the previous cohort. Upload its students and courses next.`,1)};
+$('codel').onclick=()=>{
+  if(cohorts().length<2)return say('You need at least one cohort, so this one cannot be deleted.',0);
+  const ns=sess.filter(x=>x.co===CH).length;
+  if(ns)return say(`${CH} has ${ns} session${ns>1?'s':''}. Delete those sessions first (in Sessions and QR codes), then delete the cohort.`,0);
+  const r=rosterOf(CH),only=r.filter(s=>s.ch.length===1).length,nc=C.filter(c=>c.cohort===CH).length;
+  if(!confirm(`Delete cohort “${CH}”?\n\n• ${r.length} student${r.length===1?'':'s'} will be removed from it (${only} of them belong to no other cohort and will be deleted).\n• ${nc} course${nc===1?'':'s'} of this cohort will be deleted.`))return;
+  const gone=CH;S.forEach(s=>{if(s.ch.includes(gone)){s.ch=s.ch.filter(c=>c!==gone);delete s.ac[gone]}});S=S.filter(s=>s.ch.length);
+  C=C.filter(c=>c.cohort!==gone);delete COH[gone];switchCo(cohorts()[0]);say(`Cohort “${gone}” deleted.`,1)};
 
 /* ---- Cohorts and courses ---- */
 function renderC(){
   const q=$('cq').value.toLowerCase();
   const rows=C.map((c,i)=>({c,i})).filter(({c})=>Object.values(c).join(' ').toLowerCase().includes(q));
   $('crows').innerHTML=rows.map(({c,i})=>`<tr><td>${esc(c.cohort)}</td><td>${esc(c.year)}</td><td>${esc(c.sem)}</td><td>${esc(c.title)}</td><td><b>${esc(c.code)}</b></td><td>${esc(c.cu)}</td><td>${esc(c.ns||'')}</td><td>${esc(c.fac)}</td><td><button class="x" data-cdel="${i}" title="Remove">✕</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--mu)">No courses yet. Download the template and upload a CSV.</td></tr>';
-  $('sc').innerHTML='<option value="">None</option>'+C.map((c,i)=>`<option value="${i}">${esc(c.code)} · ${esc(c.cohort)}</option>`).join('');
+  $('sc').innerHTML='<option value="">None</option>'+C.map((c,i)=>({c,i})).filter(({c})=>c.cohort===CH).map(({c,i})=>`<option value="${i}">${esc(c.code)} · ${esc(c.cohort)}</option>`).join('');
   syncSn();renderCA();save()}
 $('cq').addEventListener('input',renderC);
 $('crows').addEventListener('click',e=>{const d=e.target.dataset.cdel;if(d!==undefined){C.splice(+d,1);renderC()}});
@@ -321,11 +399,13 @@ $('cuf').onchange=async e=>{
   const rows=parseCSV((await f.text()).replace(/^\uFEFF/,''));e.target.value='';
   if(rows.length&&/cohort/i.test(rows[0][0]))rows.shift();
   let add=0,upd=0,skip=0;
-  rows.forEach(r=>{const [cohort,year,sem,title,code,cu,fac,ns]=[0,1,2,3,4,5,6,7].map(i=>(r[i]||'').trim());
+  const c0=cohorts().length;
+  rows.forEach(r=>{let [cohort,year,sem,title,code,cu,fac,ns]=[0,1,2,3,4,5,6,7].map(i=>(r[i]||'').trim());
     if(!cohort||!title||!code||(cu&&isNaN(+cu))||(ns&&!(+ns>=1&&Number.isInteger(+ns)))){skip++;return}
+    cohort=canon(cohort);if(!COH[cohort])COH[cohort]=copyCfg(cfg(CH));
     const c=C.find(x=>x.cohort.toLowerCase()===cohort.toLowerCase()&&x.code.toLowerCase()===code.toLowerCase()),o={cohort,year,sem,title,code,cu,fac,ns};
     if(c){Object.assign(c,o);upd++}else{C.push(o);add++}});
-  renderC();say(`Upload done: ${add} added, ${upd} updated, ${skip} skipped (cohort, title and code are required; credit unit and number of sessions must be numbers).`,add+upd>0,'cmsg')};
+  const nc=cohorts().length-c0;renderCo();renderC();say(`Upload done: ${add} added, ${upd} updated, ${skip} skipped (cohort, title and code are required; credit unit and number of sessions must be numbers).${nc?` ${nc} new cohort${nc>1?'s':''} created; use the Cohort box at the top to switch to ${nc>1?'them':'it'}.`:''}`,add+upd>0,'cmsg')};
 $('cex').onclick=()=>dl('courses.csv',[['cohort_name','course_year','course_semester','course_title','course_code','course_credit_unit','faculty_name','number_of_sessions'],...C.map(c=>[c.cohort,c.year,c.sem,c.title,c.code,c.cu,c.fac,c.ns||''])].map(r=>r.map(cq).join(',')).join('\n'));
 $('sc').onchange=()=>{const v=$('sc').value,c=v===''?null:C[+v];syncSn();if(!c)return;$('st').value=c.code+' – '+c.title;$('sm').value=/2|second/i.test(c.sem)?'2':'1'};
 
@@ -343,7 +423,7 @@ function syncSn(){
 /* ---- Sessions and QR ---- */
 const curSess=()=>sess.find(x=>x.id===$('ss').value);
 function fillSess(sel){
-  $('ss').innerHTML=sess.map(x=>`<option value="${x.id}">${esc(x.title)}${x.no?` · Session ${x.no}${x.tot?'/'+x.tot:''}`:''} · ${x.date} · Sem ${x.sem} ${x.mode}</option>`).join('')||'<option value="">No sessions yet</option>';
+  $('ss').innerHTML=sess.filter(x=>x.co===CH).map(x=>`<option value="${x.id}">${esc(x.title)}${x.no?` · Session ${x.no}${x.tot?'/'+x.tot:''}`:''} · ${x.date} · Sem ${x.sem} ${x.mode}</option>`).join('')||'<option value="">No sessions for this cohort yet</option>';
   if(sel)$('ss').value=sel}
 function drawQR(c,t,s){const m=QR(t),n=m.length,z=(n+8)*s;c.width=c.height=z;const g=c.getContext('2d');
   g.fillStyle='#fff';g.fillRect(0,0,z,z);g.fillStyle='#000';
@@ -351,24 +431,25 @@ function drawQR(c,t,s){const m=QR(t),n=m.length,z=(n+8)*s;c.width=c.height=z;con
 function renderQR(){
   const ss=curSess();
   if(!ss){$('qh').textContent='';$('qinfo').textContent='';$('qg').innerHTML='<p class="note">Create a session to generate one unique QR code per student.</p>';$('pinb').innerHTML='';renderSend();renderCA();renderSvc();save();return}
-  S.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
-  $('qh').textContent=`${ss.title}${ss.no?` · Session ${ss.no}${ss.tot?' of '+ss.tot:''}`:''} · ${ss.date} · Semester ${ss.sem} · ${ss.mode}`;
-  $('qinfo').textContent=`${ss.c.filter(m=>S.some(s=>s.m===m)).length} of ${S.length} students checked in`;
+  const R=rosterOf(ss.co);R.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
+  $('qh').textContent=`${ss.title}${ss.no?` · Session ${ss.no}${ss.tot?' of '+ss.tot:''}`:''} · ${ss.co} · ${ss.date} · Semester ${ss.sem} · ${ss.mode}`;
+  $('qinfo').textContent=`${ss.c.filter(m=>R.some(s=>s.m===m)).length} of ${R.length} students checked in`;
   $('pinb').innerHTML=ss.pin?`<span class="pill ok pinbig" title="Read this out to the class">Class PIN ${esc(ss.pin)}</span> <span class="note">Read it out in the room or call. It is not printed on the QR sheet.</span>`:'';
-  $('qg').innerHTML=S.map((s,i)=>`<div class="qc"><canvas data-p="${esc(payload(ss,s))}" data-i="${i}"></canvas><b>${esc(nm(s))}</b><small>${esc(s.m)}</small>${ss.cn?`<small>${esc(ss.cn)} · Session ${ss.no}</small>`:''}${ss.c.includes(s.m)?'<span class="pill ok">Checked in</span><br>':''}<button class="g" data-png="${i}">Download PNG</button></div>`).join('');
+  $('qg').innerHTML=S.map((s,i)=>({s,i})).filter(({s})=>inCo(s,ss.co)).map(({s,i})=>`<div class="qc"><canvas data-p="${esc(payload(ss,s))}" data-i="${i}"></canvas><b>${esc(nm(s))}</b><small>${esc(s.m)}</small>${ss.cn?`<small>${esc(ss.cn)} · Session ${ss.no}</small>`:''}${ss.c.includes(s.m)?'<span class="pill ok">Checked in</span><br>':''}<button class="g" data-png="${i}">Download PNG</button></div>`).join('');
   $('qg').querySelectorAll('canvas').forEach(c=>{try{drawQR(c,c.dataset.p,6)}catch(e){}});
   renderSend();renderCA();renderSvc();save()}
 /* ---- Send panel ---- */
 const qrUrl=(ss,s)=>`${SV.url}${SV.url.includes('?')?'&':'?'}s=${ss.id}&m=${encodeURIComponent(s.m)}&t=${ss.t[s.m]}`;
 const payload=(ss,s)=>/^https?:\/\//.test(SV.url)?qrUrl(ss,s):`ATT|${ss.id}|${s.m}|${ss.t[s.m]}|${ss.cn||''}|${ss.no||''}`;
 const fname=(ss,s)=>`QR_${s.m.replace(/[^\w-]/g,'_')}_${ss.id}.png`;
-const msg=(ss,s)=>$('mt').value.replace(/\{(\w+)\}/g,(x,k)=>{const m={name:nm(s),first:s.fn||nm(s),matric:s.m,session:ss.title,date:ss.date,mode:ss.mode,sem:'Semester '+ss.sem,no:ss.no||'',course:ss.cn?ss.cn+' – '+ss.ct:'',code:payload(ss,s)};return k in m?m[k]:x});
+const msg=(ss,s)=>$('mt').value.replace(/\{(\w+)\}/g,(x,k)=>{const m={name:nm(s),first:s.fn||nm(s),matric:s.m,session:ss.title,date:ss.date,mode:ss.mode,sem:'Semester '+ss.sem,no:ss.no||'',course:ss.cn?ss.cn+' – '+ss.ct:'',cohort:ss.co||'',code:payload(ss,s)};return k in m?m[k]:x});
 function renderSend(){
   const ss=curSess(),q=$('sq').value.toLowerCase();
   if(!ss){$('sr').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--mu)">Create a session first.</td></tr>';$('sinfo').textContent='';return}
   ss.sent=ss.sent||[];
-  $('sinfo').textContent=`${ss.sent.length} of ${S.length} marked as sent · ${S.filter(s=>!okMail(s.em)&&!waNum(s.ph)).length} students have no usable email or phone`;
-  $('sr').innerHTML=S.map((s,i)=>({s,i})).filter(({s})=>(nm(s)+' '+s.m+' '+(s.em||'')).toLowerCase().includes(q)).map(({s,i})=>{
+  const R=rosterOf(ss.co);
+  $('sinfo').textContent=`${ss.sent.filter(m=>R.some(s=>s.m===m)).length} of ${R.length} marked as sent · ${R.filter(s=>!okMail(s.em)&&!waNum(s.ph)).length} students have no usable email or phone`;
+  $('sr').innerHTML=S.map((s,i)=>({s,i})).filter(({s})=>inCo(s,ss.co)&&(nm(s)+' '+s.m+' '+(s.em||'')).toLowerCase().includes(q)).map(({s,i})=>{
     const e=s.em||'',p=s.ph||'',b=(a,l,on)=>`<button class="g sm" data-a="${a}" data-i="${i}"${on?'':' disabled'}>${l}</button>`;
     return `<tr><td><b>${esc(nm(s))}</b><br><small>${esc(s.m)}</small></td><td>${e?esc(e)+(okMail(e)?'':' <span class="bd">(check)</span>'):'—'}</td><td>${p?esc(p):'—'}</td><td>${b('email','✉ Email',okMail(e))} ${b('wa','WhatsApp',!!waNum(p))} ${b('sms','SMS',!!waNum(p))} ${CS?b('share','Share',true):''} ${b('png','PNG',true)}</td><td><input type="checkbox" data-sent="${i}"${ss.sent.includes(s.m)?' checked':''}></td></tr>`}).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--mu)">No students match.</td></tr>'}
 $('sr').addEventListener('click',async e=>{
@@ -391,23 +472,24 @@ $('sr').addEventListener('change',e=>{const i=e.target.dataset.sent;if(i===undef
 $('su').onclick=()=>{const ss=curSess();if(ss){ss.sent=[];renderSend();save()}};
 $('sq').addEventListener('input',renderSend);$('mt').addEventListener('input',save);
 $('sl').onclick=()=>{const ss=curSess();if(!ss)return say('Create a session first.',0);
-  const rows=[['matric_number','last_name','first_name','middle_name','lbs_email','phone_number','whatsapp_number','session','date','qr_code_text','message']];
-  S.forEach(s=>rows.push([s.m,s.ln,s.fn,s.mn,s.em||'',s.ph||'',waNum(s.ph),ss.title,ss.date,payload(ss,s),msg(ss,s)]));
+  const rows=[['matric_number','last_name','first_name','middle_name','lbs_email','phone_number','whatsapp_number','cohort','session','date','qr_code_text','message']];
+  rosterOf(ss.co).forEach(s=>rows.push([s.m,s.ln,s.fn,s.mn,s.em||'',s.ph||'',waNum(s.ph),ss.co,ss.title,ss.date,payload(ss,s),msg(ss,s)]));
   dl(`send_list_${ss.id}.csv`,rows.map(r=>r.map(cq).join(',')).join('\n'))};
 $('mk').onclick=()=>{
   const title=$('st').value.trim();if(!title)return say('Enter a session title first.',0);
+  if(!rosterOf(CH).length)return say(`${CH} has no students yet. Upload its students first.`,0);
   const v=$('sc').value,c=v===''?null:C[+v],ck=ckOf(c),tot=c&&+c.ns?+c.ns:0,no=c?+$('sn').value:0;
   if(c){if(!Number.isInteger(no)||no<1)return say('Enter a session number (a whole number, 1 or more).',0);
     if(tot&&no>tot)return say(`${c.code} has ${tot} sessions, so the session number can be 1 to ${tot}.`,0);
     if(sess.some(x=>x.ck===ck&&x.no===no))return say(`Session ${no} for ${c.code} already exists. Choose another number.`,0)}
-  const o={id:rnd(3),title,date:$('sd').value,sem:+$('sm').value,mode:$('sx').value,t:{},c:[],sent:[],ck,no,tot,cn:c?c.code.replace(/\|/g,' '):'',ct:c?c.title:'',log:[],opens:Date.now(),closes:Date.now()+SV.win*60000,pin:SV.pin?pin4():''};
-  sess.push(o);$('st').value='';fillSess(o.id);renderQR();syncSn();
-  const base=`Session created with ${S.length} unique QR codes.${o.no?` This is session ${o.no}${tot?' of '+tot:''} for ${c.code}.`:''}`;
+  const o={id:rnd(3),title,date:$('sd').value,sem:+$('sm').value,mode:$('sx').value,t:{},c:[],sent:[],co:CH,ck,no,tot,cn:c?c.code.replace(/\|/g,' '):'',ct:c?c.title:'',log:[],opens:Date.now(),closes:Date.now()+SV.win*60000,pin:SV.pin?pin4():''};
+  sess.push(o);$('st').value='';fillSess(o.id);renderQR();syncSn();renderCo();
+  const base=`Session created for ${CH} with ${rosterOf(CH).length} unique QR codes.${o.no?` This is session ${o.no}${tot?' of '+tot:''} for ${c.code}.`:''}`;
   say(base,1);
   if(svOn()){say(base+' Publishing to the online service…',1);syncSess(o).then(()=>say(`${base} Published: students can check in until ${hhmm(o.closes)}.`,1)).catch(e=>say(`${base} Not published yet: ${e.message}`,0))}};
 $('ss').onchange=renderQR;
 $('pr').onclick=()=>{if(curSess())window.print();else say('Create a session first.',0)};
-$('ds').onclick=()=>{const ss=curSess();if(ss&&confirm('Delete this session and its QR codes? Attendance counts already recorded stay.')){sess=sess.filter(x=>x!==ss);fillSess();renderQR();syncSn()}};
+$('ds').onclick=()=>{const ss=curSess();if(ss&&confirm('Delete this session and its QR codes? Attendance counts already recorded stay.')){sess=sess.filter(x=>x!==ss);fillSess();renderQR();syncSn();renderCo()}};
 $('qg').addEventListener('click',e=>{
   const i=e.target.dataset.png;if(i===undefined)return;
   const c=document.createElement('canvas'),ss=curSess(),s=S[+i];drawQR(c,payload(ss,s),10);
@@ -415,15 +497,15 @@ $('qg').addEventListener('click',e=>{
 function showLast(h,ok){const c=$('lc');c.hidden=false;c.innerHTML=h;c.style.borderColor=ok?'var(--ok)':'var(--bad)'}
 const reject=m=>{showLast(`<b>${esc(m)}</b>`,0);say(m,0)};
 function record(ss,s,t,src){
-  const k=(ss.sem-1)*2+(ss.mode==='Physical'?1:0),H=held()[k];
+  const k=(ss.sem-1)*2+(ss.mode==='Physical'?1:0),H=held(ss.co)[k],a=A(s,ss.co);
   ss.log=ss.log||[];ss.c.push(s.m);ss.log.push({m:s.m,t,src});
-  let over=false;if(s.a[k]<H)s.a[k]++;else over=true;
+  let over=false;if(a[k]<H)a[k]++;else over=true;
   return{H,over}}
 function checkin(v){
   v=(typeof v==='string'?v:$('ci').value).trim();$('ci').value='';if(!v)return;
   let p=v.split('|');
   if(/^https?:\/\//i.test(v)){try{const u=new URL(v);p=['ATT',u.searchParams.get('s'),u.searchParams.get('m'),u.searchParams.get('t'),'','']}catch(e){}}
-  const ss=sess.find(x=>x.id===p[1]),s=p[0]==='ATT'&&ss&&S.find(x=>x.m===p[2]);
+  const ss=sess.find(x=>x.id===p[1]),s=p[0]==='ATT'&&ss&&S.find(x=>x.m===p[2]&&inCo(x,ss.co));
   if(!s||ss.t[s.m]!==p[3]||(p[4]&&ss.cn&&p[4]!==ss.cn))return reject('Invalid or unrecognised QR code.');
   const course=ss.cn?`${ss.cn} – ${ss.ct}${ss.no?' · Session '+ss.no:''}`:'No course linked';
   if(ss.c.includes(s.m))return reject(`${nm(s)} is already checked in for ${course}.`);
@@ -453,20 +535,20 @@ function courseInfo(k){
   const c=C.find(x=>ckOf(x)===k),ss=sess.filter(x=>x.ck===k&&x.no).sort((a,b)=>a.no-b.no),f=ss[0]||{};
   return{ss,code:c?c.code:(f.cn||k.split('|')[0]),title:c?c.title:(f.ct||''),cohort:c?c.cohort:(k.split('|')[1]||''),tot:c&&+c.ns?+c.ns:(f.tot||0)}}
 function caData(){
-  const I=courseInfo(caK),t1=+$('t1').value||0,ss=I.ss;
+  const I=courseInfo(caK),t1=cfg(I.cohort).t1,ss=I.ss;
   const N=Math.min(60,Math.max(I.tot,...ss.map(x=>x.no),1)),held=ss.length;
   const req=I.tot?Math.ceil(I.tot*t1/100-1e-9):0,allow=I.tot?I.tot-req:0;
-  const rows=S.map(s=>{
+  const rows=rosterOf(I.cohort).map(s=>{
     const marks=Array.from({length:N},(_,i)=>{const x=ss.find(z=>z.no===i+1);return x?(x.c.includes(s.m)?1:0):-1});
     const att=marks.filter(m=>m===1).length,pH=held?att/held*100:0,pT=I.tot?att/I.tot*100:0,missed=held-att;
     const st=I.tot?(att>=req?'Met':missed<=allow?'On track':'Not reachable'):(held?(pH>=t1?'On track':'Below'):'-');
     return{s,marks,att,pH,pT,st}});
   return{I,N,held,rows,t1}}
 function renderCA(){
-  const keys=[...new Set([...C.map(ckOf),...sess.filter(x=>x.ck).map(x=>x.ck)])];
+  const keys=[...new Set([...C.filter(c=>c.cohort===CH).map(ckOf),...sess.filter(x=>x.ck&&x.co===CH).map(x=>x.ck)])];
   $('ca').innerHTML=keys.length?keys.map(k=>{const i=courseInfo(k);return `<option value="${esc(k)}">${esc(i.code)} – ${esc(i.title)} (${esc(i.cohort)})</option>`}).join(''):'<option value="">No courses yet</option>';
   if(!keys.includes(caK))caK=keys[0]||'';$('ca').value=caK;
-  const rec=sess.flatMap(x=>(x.log||[]).map(l=>({...l,x}))).sort((a,b)=>b.t-a.t).slice(0,8);
+  const rec=sess.filter(x=>x.co===CH).flatMap(x=>(x.log||[]).map(l=>({...l,x}))).sort((a,b)=>b.t-a.t).slice(0,8);
   $('cas').innerHTML=rec.length?rec.map(r=>{const st=S.find(z=>z.m===r.m);return `${esc(new Date(r.t).toLocaleString())} · <b>${esc(st?nm(st):r.m)}</b> (${esc(r.m)}) · ${esc(r.x.cn||'No course')}${r.x.no?' · Session '+r.x.no:''}${r.src==='phone'?' · own phone':''}`}).join('<br>'):'No scans yet.';
   if(!caK){$('cah').innerHTML='';$('cab').innerHTML='';$('cai').textContent='Upload a course CSV, then create sessions for it.';return}
   const D=caData(),I=D.I,cls={Met:'ok','On track':'am','Not reachable':'no',Below:'no'};
@@ -476,8 +558,8 @@ function renderCA(){
 $('ca').onchange=()=>{caK=$('ca').value;renderCA()};
 $('cax').onclick=()=>{
   if(!caK)return say('No course selected.',0);
-  const D=caData(),I=D.I,rows=[['matric_number','last_name','first_name','middle_name','course_code','course_title',...Array.from({length:D.N},(_,i)=>'session_'+(i+1)),'attended','sessions_held','percent_of_held','percent_of_total','status']];
-  D.rows.forEach(r=>rows.push([r.s.m,r.s.ln,r.s.fn,r.s.mn,I.code,I.title,...r.marks.map(m=>m===1?1:m===0?0:''),r.att,D.held,D.held?r.pH.toFixed(1):'',I.tot?r.pT.toFixed(1):'',r.st]));
+  const D=caData(),I=D.I,rows=[['cohort','matric_number','last_name','first_name','middle_name','course_code','course_title',...Array.from({length:D.N},(_,i)=>'session_'+(i+1)),'attended','sessions_held','percent_of_held','percent_of_total','status']];
+  D.rows.forEach(r=>rows.push([I.cohort,r.s.m,r.s.ln,r.s.fn,r.s.mn,I.code,I.title,...r.marks.map(m=>m===1?1:m===0?0:''),r.att,D.held,D.held?r.pH.toFixed(1):'',I.tot?r.pT.toFixed(1):'',r.st]));
   dl(`course_attendance_${I.code.replace(/[^\w-]/g,'_')}.csv`,rows.map(r=>r.map(cq).join(',')).join('\n'))};
 
 /* ---- Online check-in service ---- */
@@ -506,8 +588,8 @@ async function svc(body){
   if(!j.ok)throw new Error(j.error||'The service refused the request.');
   return j}
 function sessBody(ss){
-  ss.t=ss.t||{};S.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
-  const tok={};S.forEach(s=>{tok[s.m]={t:ss.t[s.m],n:nm(s)}});
+  ss.t=ss.t||{};const R=rosterOf(ss.co);R.forEach(s=>{if(!ss.t[s.m])ss.t[s.m]=rnd(4)});
+  const tok={};R.forEach(s=>{tok[s.m]={t:ss.t[s.m],n:nm(s)}});
   return{id:ss.id,title:ss.title,course:ss.cn?ss.cn+' – '+ss.ct:'',no:ss.no||'',date:ss.date,mode:ss.mode,sem:ss.sem,opens:ss.opens||0,closes:ss.closes||0,pin:ss.pin||'',tokens:tok}}
 async function syncSess(ss){await svc({a:'sync',session:sessBody(ss)});ss.synced=Date.now();save();renderSvc()}
 function renderSvc(){
@@ -547,7 +629,7 @@ $('svx').onclick=async()=>{
   ss.closes=Date.now();
   try{await syncSess(ss);say('Check-in closed. Students who already checked in are unaffected.',1,'svm')}catch(e){say(e.message,0,'svm')}};
 function applyOnline(r){
-  const ss=sess.find(x=>x.id===r.sid),s=ss&&S.find(x=>x.m===r.m);
+  const ss=sess.find(x=>x.id===r.sid),s=ss&&S.find(x=>x.m===r.m&&inCo(x,ss.co));
   if(!ss||!s||ss.c.includes(s.m))return null;
   record(ss,s,r.t||Date.now(),'phone');
   if(!caK&&ss.ck)caK=ss.ck;
@@ -626,7 +708,7 @@ function QR(text){
   ap(best);fmt(best);return M}
 //QR-END
 
-initSvc();renderC();fillSess();render();renderQR();syncSn();renderSvc();
+initSvc();loadCfg();renderCo();renderC();fillSess();render();renderQR();syncSn();renderSvc();
 </script>
 </body>
 </html>
